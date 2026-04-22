@@ -1,0 +1,39 @@
+{
+  "name": "@pson5/graph-engine",
+  "version": "0.1.0",
+  "description": "Knowledge graph construction and explainability helpers for PSON5.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/graph-engine/src/index.js",
+  "types": "./dist/graph-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/graph-engine/src/index.d.ts",
+      "default": "./dist/graph-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "graph",
+    "knowledge-graph",
+    "explainability"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "name": "@pson5/cli",
+  "version": "0.1.0",
+  "description": "Interactive command-line interface for PSON5 profiles, learning, simulation, and inspection.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "pson": "./dist/apps/cli/src/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "dev": "node --enable-source-maps dist/apps/cli/src/index.js"
+  },
+  "keywords": [
+    "pson",
+    "cli",
+    "agents",
+    "personalization"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "preferGlobal": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/acquisition-engine": "0.1.0",
+    "@pson5/agent-context": "0.1.0",
+    "@pson5/core-types": "0.1.0",
+    "@pson5/graph-engine": "0.1.0",
+    "@pson5/provider-engine": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "@pson5/simulation-engine": "0.1.0",
+    "@pson5/state-engine": "0.1.0"
+  }
+}

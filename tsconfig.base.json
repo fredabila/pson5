@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "baseUrl": ".",
+    "paths": {
+      "@pson5/acquisition-engine": ["packages/acquisition-engine/src/index.ts"],
+      "@pson5/agent-context": ["packages/agent-context/src/index.ts"],
+      "@pson5/provider-engine": ["packages/provider-engine/src/index.ts"],
+      "@pson5/postgres-store": ["packages/postgres-store/src/index.ts"],
+      "@pson5/core-types": ["packages/core-types/src/index.ts"],
+      "@pson5/graph-engine": ["packages/graph-engine/src/index.ts"],
+      "@pson5/modeling-engine": ["packages/modeling-engine/src/index.ts"],
+      "@pson5/privacy": ["packages/privacy/src/index.ts"],
+      "@pson5/schemas": ["packages/schemas/src/index.ts"],
+      "@pson5/serialization-engine": ["packages/serialization-engine/src/index.ts"],
+      "@pson5/sdk": ["packages/sdk/src/index.ts"],
+      "@pson5/simulation-engine": ["packages/simulation-engine/src/index.ts"],
+      "@pson5/state-engine": ["packages/state-engine/src/index.ts"]
+    },
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true
+  }
+}

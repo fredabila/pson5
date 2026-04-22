@@ -1,0 +1,41 @@
+{
+  "name": "@pson5/modeling-engine",
+  "version": "0.1.0",
+  "description": "Rules-first trait and heuristic modeling engine for PSON5.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/modeling-engine/src/index.js",
+  "types": "./dist/modeling-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/modeling-engine/src/index.d.ts",
+      "default": "./dist/modeling-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "modeling",
+    "heuristics",
+    "traits",
+    "inference"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/provider-engine": "0.1.0"
+  }
+}

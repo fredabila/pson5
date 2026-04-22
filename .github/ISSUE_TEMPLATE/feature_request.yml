@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a new capability or improvement.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or gap are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the change you want to see.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: API or package impact
+      description: Which packages, routes, or docs would be affected?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

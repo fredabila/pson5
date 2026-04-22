@@ -1,0 +1,46 @@
+name: Publish Packages
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Validate
+        run: npm run ci
+
+      - name: Publish packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          npm publish --access public --workspace @pson5/core-types
+          npm publish --access public --workspace @pson5/schemas
+          npm publish --access public --workspace @pson5/privacy
+          npm publish --access public --workspace @pson5/serialization-engine
+          npm publish --access public --workspace @pson5/provider-engine
+          npm publish --access public --workspace @pson5/modeling-engine
+          npm publish --access public --workspace @pson5/state-engine
+          npm publish --access public --workspace @pson5/graph-engine
+          npm publish --access public --workspace @pson5/simulation-engine
+          npm publish --access public --workspace @pson5/acquisition-engine
+          npm publish --access public --workspace @pson5/agent-context
+          npm publish --access public --workspace @pson5/sdk
+          npm publish --access public --workspace @pson5/postgres-store
+          npm publish --access public --workspace @pson5/cli

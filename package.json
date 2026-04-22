@@ -1,0 +1,40 @@
+{
+  "name": "pson5",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Open-source monorepo for the PSON5 personalization profile standard, SDKs, engines, CLI, API, and documentation.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "personalization",
+    "ai",
+    "agent",
+    "profiles",
+    "simulation",
+    "typescript"
+  ],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "ci": "npm run check && npm run build && npm run test:storage && npm run test:postgres-store",
+    "dev:api": "npm run dev --workspace @pson5/api",
+    "dev:cli": "npm run dev --workspace @pson5/cli",
+    "dev:docs": "npm run dev --workspace @pson5/docs-site",
+    "docs:build": "npm run build --workspace @pson5/docs-site",
+    "docs:check": "npm run check --workspace @pson5/docs-site",
+    "test:storage": "node tests/integration/storage-adapter-contract.mjs",
+    "test:postgres-store": "node tests/integration/postgres-store-contract.mjs",
+    "pack:publishable": "npm pack --workspace @pson5/core-types --workspace @pson5/schemas --workspace @pson5/privacy --workspace @pson5/serialization-engine --workspace @pson5/provider-engine --workspace @pson5/modeling-engine --workspace @pson5/state-engine --workspace @pson5/graph-engine --workspace @pson5/simulation-engine --workspace @pson5/acquisition-engine --workspace @pson5/agent-context --workspace @pson5/sdk --workspace @pson5/postgres-store --workspace @pson5/cli"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.0"
+  }
+}

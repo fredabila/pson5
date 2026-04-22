@@ -1,0 +1,40 @@
+{
+  "name": "@pson5/privacy",
+  "version": "0.1.0",
+  "description": "Privacy, redaction, and provider policy helpers for PSON5 profiles.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/privacy/src/index.js",
+  "types": "./dist/privacy/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/privacy/src/index.d.ts",
+      "default": "./dist/privacy/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "privacy",
+    "redaction",
+    "consent",
+    "security"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0"
+  }
+}

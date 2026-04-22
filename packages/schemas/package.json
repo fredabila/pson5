@@ -1,0 +1,39 @@
+{
+  "name": "@pson5/schemas",
+  "version": "0.1.0",
+  "description": "JSON schema validation and profile validation helpers for PSON5 documents.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/schemas/src/index.js",
+  "types": "./dist/schemas/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/schemas/src/index.d.ts",
+      "default": "./dist/schemas/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "schema",
+    "validation",
+    "json-schema"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0"
+  }
+}

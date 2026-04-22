@@ -1,0 +1,41 @@
+{
+  "name": "@pson5/postgres-store",
+  "version": "0.1.0",
+  "description": "Postgres-oriented repository and schema helpers for PSON5 storage backends.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/postgres-store/src/index.js",
+  "types": "./dist/postgres-store/src/index.d.ts",
+  "files": [
+    "dist",
+    "sql",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/postgres-store/src/index.d.ts",
+      "default": "./dist/postgres-store/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "postgres",
+    "storage",
+    "repository"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0"
+  }
+}

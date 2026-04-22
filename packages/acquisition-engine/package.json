@@ -1,0 +1,44 @@
+{
+  "name": "@pson5/acquisition-engine",
+  "version": "0.1.0",
+  "description": "Acquisition flow, question registry, and learning session helpers for PSON5.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/acquisition-engine/src/index.js",
+  "types": "./dist/acquisition-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/acquisition-engine/src/index.d.ts",
+      "default": "./dist/acquisition-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "acquisition",
+    "questionnaire",
+    "learning",
+    "profiles"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/graph-engine": "0.1.0",
+    "@pson5/modeling-engine": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "@pson5/state-engine": "0.1.0"
+  }
+}

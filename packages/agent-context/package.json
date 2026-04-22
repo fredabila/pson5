@@ -1,0 +1,42 @@
+{
+  "name": "@pson5/agent-context",
+  "version": "0.1.0",
+  "description": "Agent-safe personalization projection layer for PSON5 profiles.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/agent-context/src/index.js",
+  "types": "./dist/agent-context/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/agent-context/src/index.d.ts",
+      "default": "./dist/agent-context/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "agents",
+    "context",
+    "personalization",
+    "projection"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "@pson5/state-engine": "0.1.0"
+  }
+}

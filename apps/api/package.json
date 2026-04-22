@@ -1,0 +1,24 @@
+{
+  "name": "@pson5/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/apps/api/src/server.js",
+  "types": "./dist/apps/api/src/server.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "dev": "node --enable-source-maps dist/apps/api/src/server.js"
+  },
+  "dependencies": {
+    "@pson5/acquisition-engine": "0.1.0",
+    "@pson5/agent-context": "0.1.0",
+    "@pson5/core-types": "0.1.0",
+    "@pson5/graph-engine": "0.1.0",
+    "@pson5/postgres-store": "0.1.0",
+    "@pson5/provider-engine": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "@pson5/simulation-engine": "0.1.0",
+    "@pson5/state-engine": "0.1.0"
+  }
+}

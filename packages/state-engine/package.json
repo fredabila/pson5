@@ -1,0 +1,39 @@
+{
+  "name": "@pson5/state-engine",
+  "version": "0.1.0",
+  "description": "Dynamic state derivation utilities for PSON5 profiles.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/state-engine/src/index.js",
+  "types": "./dist/state-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/state-engine/src/index.d.ts",
+      "default": "./dist/state-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "state",
+    "behavior",
+    "personalization"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0"
+  }
+}

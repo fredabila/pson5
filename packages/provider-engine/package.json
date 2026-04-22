@@ -1,0 +1,42 @@
+{
+  "name": "@pson5/provider-engine",
+  "version": "0.1.0",
+  "description": "AI provider integration and policy-aware provider utilities for PSON5.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/provider-engine/src/index.js",
+  "types": "./dist/provider-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/provider-engine/src/index.d.ts",
+      "default": "./dist/provider-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "openai",
+    "anthropic",
+    "providers",
+    "ai"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/privacy": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0"
+  }
+}

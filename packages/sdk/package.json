@@ -1,0 +1,48 @@
+{
+  "name": "@pson5/sdk",
+  "version": "0.1.0",
+  "description": "Primary TypeScript SDK for working with PSON5 profiles, learning, simulation, and agent context.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/sdk/src/index.js",
+  "types": "./dist/sdk/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/sdk/src/index.d.ts",
+      "default": "./dist/sdk/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "sdk",
+    "agents",
+    "profiles",
+    "ai",
+    "personalization"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/acquisition-engine": "0.1.0",
+    "@pson5/agent-context": "0.1.0",
+    "@pson5/core-types": "0.1.0",
+    "@pson5/graph-engine": "0.1.0",
+    "@pson5/provider-engine": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "@pson5/simulation-engine": "0.1.0",
+    "@pson5/state-engine": "0.1.0"
+  }
+}

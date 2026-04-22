@@ -1,0 +1,43 @@
+{
+  "name": "@pson5/serialization-engine",
+  "version": "0.1.0",
+  "description": "Profile initialization, import/export, storage adapters, and persistence helpers for PSON5.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/serialization-engine/src/index.js",
+  "types": "./dist/serialization-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/serialization-engine/src/index.d.ts",
+      "default": "./dist/serialization-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "serialization",
+    "storage",
+    "profiles",
+    "import",
+    "export"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/privacy": "0.1.0",
+    "@pson5/schemas": "0.1.0"
+  }
+}

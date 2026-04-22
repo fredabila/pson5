@@ -1,0 +1,43 @@
+{
+  "name": "@pson5/simulation-engine",
+  "version": "0.1.0",
+  "description": "Scenario simulation and prediction helpers for PSON5 profiles.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/simulation-engine/src/index.js",
+  "types": "./dist/simulation-engine/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/simulation-engine/src/index.d.ts",
+      "default": "./dist/simulation-engine/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "simulation",
+    "prediction",
+    "agents"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/graph-engine": "0.1.0",
+    "@pson5/provider-engine": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "@pson5/state-engine": "0.1.0"
+  }
+}

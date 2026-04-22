@@ -1,0 +1,12 @@
+{
+  "name": "@pson5/docs-site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node -e \"const fs=require('node:fs'); ['server.mjs','public/index.html','public/styles.css','public/app.js','public/site-data.js'].forEach((file)=>{ if(!fs.existsSync(file)) { throw new Error('Missing '+file); }}); console.log('docs site ready');\"",
+    "check": "node -e \"const fs=require('node:fs'); ['server.mjs','public/index.html','public/styles.css','public/app.js','public/site-data.js'].forEach((file)=>{ if(!fs.existsSync(file)) { throw new Error('Missing '+file); }}); console.log('docs site ready');\"",
+    "dev": "node server.mjs",
+    "start": "node server.mjs"
+  }
+}

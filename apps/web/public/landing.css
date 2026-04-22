@@ -1,0 +1,240 @@
+:root {
+  --bg: #f4efe5;
+  --panel: rgba(255, 250, 242, 0.88);
+  --ink: #13241e;
+  --muted: #5f6d65;
+  --accent: #0f6c58;
+  --accent-2: #c45b2b;
+  --line: rgba(19, 36, 30, 0.12);
+  --shadow: 0 24px 70px rgba(43, 35, 24, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at top left, rgba(196, 91, 43, 0.16), transparent 24%),
+    radial-gradient(circle at top right, rgba(15, 108, 88, 0.16), transparent 28%),
+    linear-gradient(180deg, #fbf7f0 0%, var(--bg) 100%);
+}
+
+.landing-shell {
+  width: min(1320px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 28px 0 48px;
+  display: grid;
+  gap: 22px;
+}
+
+.hero-panel,
+.feature-card,
+.architecture-strip,
+.closing-panel,
+.flow-card,
+.hero-card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.hero-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) 340px;
+  gap: 22px;
+  padding: 30px;
+  border-radius: 28px;
+}
+
+.eyebrow,
+.feature-kicker {
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.78rem;
+  color: var(--accent-2);
+}
+
+.hero-copy h1,
+.strip-copy h2,
+.closing-panel h2 {
+  margin: 0 0 16px;
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+}
+
+.hero-copy h1 {
+  font-size: clamp(2.8rem, 5vw, 5.6rem);
+  max-width: 11ch;
+}
+
+.lede {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.primary-cta,
+.secondary-cta,
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 18px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.primary-cta {
+  background: var(--accent);
+  color: #fff;
+}
+
+.primary-button {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+}
+
+.secondary-cta {
+  color: var(--ink);
+  border: 1px solid rgba(19, 36, 30, 0.14);
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.hero-card {
+  border-radius: 24px;
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+  align-self: start;
+}
+
+.hero-stat,
+.flow-card {
+  padding: 16px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.hero-stat span,
+.flow-card span {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.hero-stat strong,
+.flow-card strong {
+  font-size: 1.1rem;
+}
+
+.feature-band {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.feature-card,
+.architecture-strip,
+.closing-panel {
+  border-radius: 24px;
+}
+
+.feature-card {
+  padding: 22px;
+}
+
+.feature-card h2 {
+  margin: 0 0 12px;
+  font-size: 1.4rem;
+  line-height: 1.1;
+}
+
+.feature-card p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.architecture-strip {
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.strip-copy h2 {
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  max-width: 18ch;
+}
+
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.closing-panel {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.notice-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.notice-item {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.64);
+  border: 1px solid rgba(19, 36, 30, 0.08);
+  color: var(--ink);
+}
+
+@media (max-width: 1080px) {
+  .hero-panel,
+  .feature-band,
+  .flow-grid,
+  .closing-panel {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+}
+
+@media (max-width: 760px) {
+  .landing-shell {
+    width: min(100vw - 18px, 100%);
+    padding: 10px 0 28px;
+  }
+
+  .hero-panel,
+  .feature-card,
+  .architecture-strip,
+  .closing-panel {
+    padding: 18px;
+  }
+}
