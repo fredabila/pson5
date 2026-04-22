@@ -4,6 +4,14 @@
   "private": true,
   "description": "Open-source monorepo for the PSON5 personalization profile standard, SDKs, engines, CLI, API, and documentation.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git"
+  },
+  "homepage": "https://github.com/fredabila/pson5#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "keywords": [
     "personalization",

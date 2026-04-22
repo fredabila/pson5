@@ -1,0 +1,25 @@
+changelog:
+  categories:
+    - title: Core Platform
+      labels:
+        - core
+        - platform
+    - title: SDK And CLI
+      labels:
+        - sdk
+        - cli
+    - title: API And Storage
+      labels:
+        - api
+        - storage
+    - title: Docs And Developer Experience
+      labels:
+        - docs
+        - dx
+    - title: Security And Privacy
+      labels:
+        - security
+        - privacy
+    - title: Other Changes
+      labels:
+        - "*"

@@ -118,14 +118,14 @@ npm run dev
 
 Repo docs:
 
-- [PSON5_SCOPE.md](/C:/Users/user/pson5/PSON5_SCOPE.md)
-- [docs/architecture/system-architecture.md](/C:/Users/user/pson5/docs/architecture/system-architecture.md)
-- [docs/schemas/pson-schema.md](/C:/Users/user/pson5/docs/schemas/pson-schema.md)
-- [docs/api/api-contract.md](/C:/Users/user/pson5/docs/api/api-contract.md)
-- [docs/usage/sdk-usage.md](/C:/Users/user/pson5/docs/usage/sdk-usage.md)
-- [docs/usage/api-quickstart.md](/C:/Users/user/pson5/docs/usage/api-quickstart.md)
-- [docs/usage/agent-integration.md](/C:/Users/user/pson5/docs/usage/agent-integration.md)
-- [docs/usage/agent-context.md](/C:/Users/user/pson5/docs/usage/agent-context.md)
+- [PSON5_SCOPE.md](./PSON5_SCOPE.md)
+- [docs/architecture/system-architecture.md](./docs/architecture/system-architecture.md)
+- [docs/schemas/pson-schema.md](./docs/schemas/pson-schema.md)
+- [docs/api/api-contract.md](./docs/api/api-contract.md)
+- [docs/usage/sdk-usage.md](./docs/usage/sdk-usage.md)
+- [docs/usage/api-quickstart.md](./docs/usage/api-quickstart.md)
+- [docs/usage/agent-integration.md](./docs/usage/agent-integration.md)
+- [docs/usage/agent-context.md](./docs/usage/agent-context.md)
 
 Docs app:
 
@@ -156,12 +156,12 @@ This is a strong early cloud boundary, but it is not the end state. Remaining ha
 
 The repository now includes:
 
-- [LICENSE](/C:/Users/user/pson5/LICENSE)
-- [CODE_OF_CONDUCT.md](/C:/Users/user/pson5/CODE_OF_CONDUCT.md)
-- [CONTRIBUTING.md](/C:/Users/user/pson5/CONTRIBUTING.md)
-- [SECURITY.md](/C:/Users/user/pson5/SECURITY.md)
-- [SUPPORT.md](/C:/Users/user/pson5/SUPPORT.md)
-- [PUBLISHING.md](/C:/Users/user/pson5/PUBLISHING.md)
+- [LICENSE](./LICENSE)
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md)
+- [SECURITY.md](./SECURITY.md)
+- [SUPPORT.md](./SUPPORT.md)
+- [PUBLISHING.md](./PUBLISHING.md)
 - GitHub issue templates
 - CI workflow
 - manual publish workflow for npm packages
@@ -180,4 +180,4 @@ Pack all publishable packages:
 npm run pack:publishable
 ```
 
-See [PUBLISHING.md](/C:/Users/user/pson5/PUBLISHING.md) for the current release checklist.
+See [PUBLISHING.md](./PUBLISHING.md) for the current release checklist.

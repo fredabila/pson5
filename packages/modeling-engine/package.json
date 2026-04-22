@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Rules-first trait and heuristic modeling engine for PSON5.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/modeling-engine"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/modeling-engine#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/modeling-engine/src/index.js",
   "types": "./dist/modeling-engine/src/index.d.ts",

@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "JSON schema validation and profile validation helpers for PSON5 documents.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/schemas"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/schemas#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/schemas/src/index.js",
   "types": "./dist/schemas/src/index.d.ts",

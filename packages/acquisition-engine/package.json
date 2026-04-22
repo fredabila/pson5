@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Acquisition flow, question registry, and learning session helpers for PSON5.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/acquisition-engine"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/acquisition-engine#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/acquisition-engine/src/index.js",
   "types": "./dist/acquisition-engine/src/index.d.ts",

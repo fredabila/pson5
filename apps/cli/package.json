@@ -3,9 +3,18 @@
   "version": "0.1.0",
   "description": "Interactive command-line interface for PSON5 profiles, learning, simulation, and inspection.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "apps/cli"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/apps/cli#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "bin": {
-    "pson": "./dist/apps/cli/src/index.js"
+    "pson": "dist/apps/cli/src/index.js"
   },
   "files": [
     "dist",

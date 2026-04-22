@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Scenario simulation and prediction helpers for PSON5 profiles.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/simulation-engine"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/simulation-engine#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/simulation-engine/src/index.js",
   "types": "./dist/simulation-engine/src/index.d.ts",

@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "AI provider integration and policy-aware provider utilities for PSON5.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/provider-engine"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/provider-engine#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/provider-engine/src/index.js",
   "types": "./dist/provider-engine/src/index.d.ts",

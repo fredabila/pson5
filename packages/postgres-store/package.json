@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Postgres-oriented repository and schema helpers for PSON5 storage backends.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/postgres-store"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/postgres-store#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/postgres-store/src/index.js",
   "types": "./dist/postgres-store/src/index.d.ts",

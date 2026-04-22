@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Core TypeScript types and shared contracts for the PSON5 personalization standard.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/core-types"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/core-types#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
