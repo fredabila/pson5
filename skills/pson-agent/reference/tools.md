@@ -2,7 +2,7 @@
 
 Every transport (SDK, HTTP, MCP) exposes the same seven tools. They're defined in one place — `@pson5/sdk/src/agent-tools.ts` — and re-exported with identical request/response shapes from each surface.
 
-Canonical source: [packages/sdk/src/agent-tools.ts](https://github.com/pson5/pson5/blob/main/packages/sdk/src/agent-tools.ts)
+Canonical source: [packages/sdk/src/agent-tools.ts](https://github.com/fredabila/pson5/blob/main/packages/sdk/src/agent-tools.ts)
 
 ## Tool index
 

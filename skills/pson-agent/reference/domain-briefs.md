@@ -167,4 +167,4 @@ Respect the signal. The stop reason is useful to log and sometimes worth showing
 - [../SKILL.md](../SKILL.md) — the behavioral contract
 - [../examples/generative-loop.ts](../examples/generative-loop.ts) — the full zero-registry loop in <80 lines
 - [tools.md](tools.md) — `pson_get_next_questions`, `pson_learn`
-- [github.com/pson5/pson5 · examples/claude-driven-persona](https://github.com/pson5/pson5/tree/main/examples/claude-driven-persona) — a live run
+- [github.com/fredabila/pson5 · examples/claude-driven-persona](https://github.com/fredabila/pson5/tree/main/examples/claude-driven-persona) — a live run

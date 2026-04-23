@@ -107,6 +107,6 @@ RETURN h1.label AS heuristic, p1.user_id, p2.user_id;
 
 ## Related
 
-- Full walkthrough with troubleshooting: [docs/usage/neo4j-setup.md](https://github.com/pson5/pson5/blob/main/docs/usage/neo4j-setup.md)
-- Package reference: [docs/usage/neo4j-store.md](https://github.com/pson5/pson5/blob/main/docs/usage/neo4j-store.md)
-- Scripts directory: [scripts/](https://github.com/pson5/pson5/tree/main/scripts)
+- Full walkthrough with troubleshooting: [docs/usage/neo4j-setup.md](https://github.com/fredabila/pson5/blob/main/docs/usage/neo4j-setup.md)
+- Package reference: [docs/usage/neo4j-store.md](https://github.com/fredabila/pson5/blob/main/docs/usage/neo4j-store.md)
+- Scripts directory: [scripts/](https://github.com/fredabila/pson5/tree/main/scripts)

@@ -161,4 +161,4 @@ I'm proposing, or leave room to adjust?"
 
 - [../SKILL.md](../SKILL.md) — the full behavioral contract
 - [tools.md](tools.md) — `pson_get_agent_context` and the `redaction_notes` / `reasoning_policy` fields
-- [github.com/pson5/pson5 · docs/usage/agent-context.md](https://github.com/pson5/pson5/blob/main/docs/usage/agent-context.md)
+- [github.com/fredabila/pson5 · docs/usage/agent-context.md](https://github.com/fredabila/pson5/blob/main/docs/usage/agent-context.md)

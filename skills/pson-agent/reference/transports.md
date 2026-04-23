@@ -11,7 +11,7 @@ One executor, four front doors. Pick whichever matches your runtime.
 
 ## 1. SDK
 
-Canonical source: [packages/sdk/src/index.ts](https://github.com/pson5/pson5/blob/main/packages/sdk/src/index.ts).
+Canonical source: [packages/sdk/src/index.ts](https://github.com/fredabila/pson5/blob/main/packages/sdk/src/index.ts).
 
 ```ts
 import { PsonClient, createPsonAgentToolExecutor } from "@pson5/sdk";
@@ -31,7 +31,7 @@ Or call the SDK methods directly — `client.loadProfileByUserId(...)`, `client.
 
 ## 2. HTTP API
 
-Canonical source: [apps/api/src/server.ts](https://github.com/pson5/pson5/blob/main/apps/api/src/server.ts) · [docs/api/api-contract.md](https://github.com/pson5/pson5/blob/main/docs/api/api-contract.md).
+Canonical source: [apps/api/src/server.ts](https://github.com/fredabila/pson5/blob/main/apps/api/src/server.ts) · [docs/api/api-contract.md](https://github.com/fredabila/pson5/blob/main/docs/api/api-contract.md).
 
 ```http
 POST /v1/pson/tools/execute HTTP/1.1

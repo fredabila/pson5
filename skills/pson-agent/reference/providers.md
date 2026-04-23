@@ -162,8 +162,8 @@ export PSON_AI_MODEL=v2-prod
 
 All retry, audit, and timeout behavior is shared — your adapter only owns request construction and response parsing.
 
-Canonical source: [packages/provider-engine/src/index.ts](https://github.com/pson5/pson5/blob/main/packages/provider-engine/src/index.ts).
-Full guide: [docs/usage/provider-adapters.md](https://github.com/pson5/pson5/blob/main/docs/usage/provider-adapters.md).
+Canonical source: [packages/provider-engine/src/index.ts](https://github.com/fredabila/pson5/blob/main/packages/provider-engine/src/index.ts).
+Full guide: [docs/usage/provider-adapters.md](https://github.com/fredabila/pson5/blob/main/docs/usage/provider-adapters.md).
 
 ## Per-call audit
 

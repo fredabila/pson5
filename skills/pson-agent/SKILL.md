@@ -11,7 +11,7 @@ description: Use when an AI agent needs user-specific personalization through PS
 
 ## What PSON5 is (one paragraph)
 
-PSON5 is an open standard and infrastructure for cognitive user profiles. It keeps what the user said, what the model inferred, and what the simulator predicts as three separate things — so you can plan, explain, and fail gracefully on top of them. The pipeline is: **Acquisition → Modeling → State → Graph → Simulation → Projection**. The full source, demos, and docs live at [github.com/pson5/pson5](https://github.com/pson5/pson5).
+PSON5 is an open standard and infrastructure for cognitive user profiles. It keeps what the user said, what the model inferred, and what the simulator predicts as three separate things — so you can plan, explain, and fail gracefully on top of them. The pipeline is: **Acquisition → Modeling → State → Graph → Simulation → Projection**. The full source, demos, and docs live at [github.com/fredabila/pson5](https://github.com/fredabila/pson5).
 
 ## The core invariant — this is non-negotiable
 
@@ -58,7 +58,7 @@ Use when onboarding a new vertical, a new customer, or a new topic. **PSON5 does
    - `contradiction_probe` when `session.contradiction_flags` is non-empty
    - `follow_up` when an answer opened a rabbit hole
 
-See [examples/generative-loop.ts](examples/generative-loop.ts) for a full working loop. See [the live demo](https://github.com/pson5/pson5/tree/main/examples/claude-driven-persona) for an end-to-end run where both the questions and the user's answers come from Claude.
+See [examples/generative-loop.ts](examples/generative-loop.ts) for a full working loop. See [the live demo](https://github.com/fredabila/pson5/tree/main/examples/claude-driven-persona) for an end-to-end run where both the questions and the user's answers come from Claude.
 
 ## Stop conditions
 
@@ -144,15 +144,15 @@ Everything below is in this directory — relative links work regardless of wher
 
 Canonical sources that this skill shadows. When the skill and the repo disagree, the repo wins — check there for the authoritative word.
 
-- Repo: [github.com/pson5/pson5](https://github.com/pson5/pson5)
-- Quickstart: [docs/usage/quickstart.md](https://github.com/pson5/pson5/blob/main/docs/usage/quickstart.md)
-- Agent integration: [docs/usage/agent-integration.md](https://github.com/pson5/pson5/blob/main/docs/usage/agent-integration.md)
-- Agent tools: [docs/usage/agent-tools.md](https://github.com/pson5/pson5/blob/main/docs/usage/agent-tools.md)
-- Agent context: [docs/usage/agent-context.md](https://github.com/pson5/pson5/blob/main/docs/usage/agent-context.md)
-- Provider adapters: [docs/usage/provider-adapters.md](https://github.com/pson5/pson5/blob/main/docs/usage/provider-adapters.md)
-- Privacy model: [docs/privacy/privacy-model.md](https://github.com/pson5/pson5/blob/main/docs/privacy/privacy-model.md)
-- API contract: [docs/api/api-contract.md](https://github.com/pson5/pson5/blob/main/docs/api/api-contract.md)
-- PSON5 scope (the constitution): [PSON5_SCOPE.md](https://github.com/pson5/pson5/blob/main/PSON5_SCOPE.md)
+- Repo: [github.com/fredabila/pson5](https://github.com/fredabila/pson5)
+- Quickstart: [docs/usage/quickstart.md](https://github.com/fredabila/pson5/blob/main/docs/usage/quickstart.md)
+- Agent integration: [docs/usage/agent-integration.md](https://github.com/fredabila/pson5/blob/main/docs/usage/agent-integration.md)
+- Agent tools: [docs/usage/agent-tools.md](https://github.com/fredabila/pson5/blob/main/docs/usage/agent-tools.md)
+- Agent context: [docs/usage/agent-context.md](https://github.com/fredabila/pson5/blob/main/docs/usage/agent-context.md)
+- Provider adapters: [docs/usage/provider-adapters.md](https://github.com/fredabila/pson5/blob/main/docs/usage/provider-adapters.md)
+- Privacy model: [docs/privacy/privacy-model.md](https://github.com/fredabila/pson5/blob/main/docs/privacy/privacy-model.md)
+- API contract: [docs/api/api-contract.md](https://github.com/fredabila/pson5/blob/main/docs/api/api-contract.md)
+- PSON5 scope (the constitution): [PSON5_SCOPE.md](https://github.com/fredabila/pson5/blob/main/PSON5_SCOPE.md)
 
 ## Limits
 

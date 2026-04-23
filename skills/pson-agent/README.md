@@ -32,6 +32,6 @@ pson-agent/
 
 ## External canonical source
 
-- [github.com/pson5/pson5](https://github.com/pson5/pson5)
+- [github.com/fredabila/pson5](https://github.com/fredabila/pson5)
 
 When a file here disagrees with the repo, the repo wins.
