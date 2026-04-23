@@ -39,7 +39,7 @@ const CHARS_PER_TOKEN_ESTIMATE = 4;
 
 interface ProviderCallAuditRecord {
   timestamp: string;
-  provider: "openai" | "anthropic";
+  provider: string;
   model: string;
   base_url: string;
   endpoint: string;
@@ -221,6 +221,80 @@ interface OpenAiResponseFormat {
   schema: Record<string, unknown>;
 }
 
+// ---------------------------------------------------------------------------
+// Provider adapter contract + registry
+//
+// Any model can plug into PSON5 by implementing this interface and calling
+// `registerProviderAdapter(adapter)`. The built-in adapters (openai,
+// anthropic, openai-compatible) are registered on module load.
+// ---------------------------------------------------------------------------
+
+/** Inputs handed to an adapter for a single structured JSON call. */
+export interface ProviderAdapterCallArgs {
+  /**
+   * Fully resolved provider config for this call: provider name, model,
+   * base_url, timeout_ms, api_key.
+   */
+  config: StoredAiProviderConfig;
+  /** JSON-Schema structured-output hint. */
+  format: OpenAiResponseFormat;
+  /** Developer-level instructions to steer the model. */
+  instructions: string;
+  /** Arbitrary JSON payload that becomes the "user" message content. */
+  payload: Record<string, unknown>;
+  /** Abort signal bound to the PSON5 timeout. */
+  signal: AbortSignal;
+}
+
+/** Result of a single adapter call. Metrics are always returned so PSON5 can audit. */
+export interface ProviderAdapterCallResult {
+  /** Parsed JSON object the model returned, or null if parsing failed. */
+  parsed: Record<string, unknown> | null;
+  /** Raw metrics from the underlying HTTP attempt(s). */
+  attempt: FetchWithRetryResult;
+  /** Endpoint that was hit — used to populate the per-call audit record. */
+  endpoint: string;
+}
+
+/** Pluggable adapter for a concrete model provider. */
+export interface ProviderAdapter {
+  /** Registry key. Lowercase, stable. */
+  readonly name: string;
+  /** Used when no base_url is configured. */
+  readonly default_base_url: string;
+  /** Used when no model is configured. */
+  readonly default_model: string;
+  /** Friendly label for UI / audits. */
+  readonly display_name?: string;
+  /** Perform a single structured JSON call against this provider. */
+  callJson(args: ProviderAdapterCallArgs): Promise<ProviderAdapterCallResult>;
+}
+
+const providerAdapterRegistry = new Map<string, ProviderAdapter>();
+
+/** Register (or replace) a provider adapter by name. */
+export function registerProviderAdapter(adapter: ProviderAdapter): void {
+  providerAdapterRegistry.set(adapter.name.toLowerCase(), adapter);
+}
+
+/** Remove a provider adapter by name. Returns true if the adapter was registered. */
+export function unregisterProviderAdapter(name: string): boolean {
+  return providerAdapterRegistry.delete(name.toLowerCase());
+}
+
+/** Look up a provider adapter by name. */
+export function getProviderAdapter(name: string | null | undefined): ProviderAdapter | undefined {
+  if (!name) {
+    return undefined;
+  }
+  return providerAdapterRegistry.get(name.toLowerCase());
+}
+
+/** List every registered provider adapter, in registration order. */
+export function listProviderAdapters(): ProviderAdapter[] {
+  return [...providerAdapterRegistry.values()];
+}
+
 interface AnthropicMessageResponse {
   content?: Array<{
     type?: string;
@@ -261,8 +335,12 @@ function getProviderConfigPath(options?: ProfileStoreOptions): string {
   return path.join(resolveStoreRoot(options), PROVIDER_CONFIG_DIR, PROVIDER_CONFIG_FILE);
 }
 
-function asProviderName(value: unknown): "openai" | "anthropic" | null {
-  return value === "openai" || value === "anthropic" ? value : null;
+function asProviderName(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 function parseStoredProviderConfig(value: unknown): StoredAiProviderConfig | null {
@@ -306,34 +384,62 @@ function readStoredProviderConfig(options?: ProfileStoreOptions): StoredAiProvid
 
 function getConfigFromEnv(): StoredAiProviderConfig | null {
   const providerValue = process.env.PSON_AI_PROVIDER?.trim().toLowerCase();
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const openaiKey = process.env.OPENAI_API_KEY?.trim();
+  const anthropicKey = process.env.ANTHROPIC_API_KEY?.trim();
+  const generalKey = process.env.PSON_AI_API_KEY?.trim();
+  const baseUrl = process.env.PSON_AI_BASE_URL?.trim();
+  const modelOverride = process.env.PSON_AI_MODEL?.trim();
+  const timeout = Number(process.env.PSON_AI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS);
 
-  if (providerValue === "anthropic" || (!providerValue && !apiKey && Boolean(anthropicApiKey))) {
-    return {
-      provider: "anthropic",
-      enabled: true,
-      model: process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_ANTHROPIC_MODEL,
-      base_url: process.env.ANTHROPIC_BASE_URL?.trim() || DEFAULT_ANTHROPIC_BASE_URL,
-      timeout_ms: Number(process.env.PSON_AI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS),
-      api_key: anthropicApiKey
-    };
-  }
+  const resolveKey = (preferred?: string): string | undefined =>
+    preferred && preferred.length > 0 ? preferred : generalKey && generalKey.length > 0 ? generalKey : undefined;
 
-  const enabled = providerValue === "openai" || (!providerValue && Boolean(apiKey));
-
-  if (!enabled) {
+  // Explicit provider wins. Otherwise infer from which key is set; falling back
+  // to OpenAI when no signal is available keeps the historical default.
+  if (providerValue) {
+    const adapter = getProviderAdapter(providerValue);
+    if (adapter) {
+      return {
+        provider: adapter.name,
+        enabled: true,
+        model: modelOverride || adapter.default_model,
+        base_url: baseUrl || adapter.default_base_url,
+        timeout_ms: timeout,
+        api_key:
+          adapter.name === "anthropic"
+            ? resolveKey(anthropicKey)
+            : adapter.name === "openai"
+              ? resolveKey(openaiKey)
+              : resolveKey()
+      };
+    }
+    // Unknown provider name — no config.
     return null;
   }
 
-  return {
-    provider: "openai",
-    enabled: true,
-    model: process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL,
-    base_url: process.env.OPENAI_BASE_URL?.trim() || DEFAULT_OPENAI_BASE_URL,
-    timeout_ms: Number(process.env.PSON_AI_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS),
-    api_key: apiKey
-  };
+  if (anthropicKey && !openaiKey) {
+    return {
+      provider: "anthropic",
+      enabled: true,
+      model: modelOverride || DEFAULT_ANTHROPIC_MODEL,
+      base_url: baseUrl || DEFAULT_ANTHROPIC_BASE_URL,
+      timeout_ms: timeout,
+      api_key: anthropicKey
+    };
+  }
+
+  if (openaiKey) {
+    return {
+      provider: "openai",
+      enabled: true,
+      model: modelOverride || DEFAULT_OPENAI_MODEL,
+      base_url: baseUrl || DEFAULT_OPENAI_BASE_URL,
+      timeout_ms: timeout,
+      api_key: openaiKey
+    };
+  }
+
+  return null;
 }
 
 function getConfigFromStore(options?: ProfileStoreOptions): StoredAiProviderConfig | null {
@@ -342,22 +448,16 @@ function getConfigFromStore(options?: ProfileStoreOptions): StoredAiProviderConf
     return stored;
   }
 
-  if (stored.provider === "openai") {
-    return {
-      provider: "openai",
-      enabled: true,
-      model: stored.model ?? DEFAULT_OPENAI_MODEL,
-      base_url: stored.base_url ?? DEFAULT_OPENAI_BASE_URL,
-      timeout_ms: stored.timeout_ms ?? DEFAULT_TIMEOUT_MS,
-      api_key: stored.api_key
-    };
+  const adapter = getProviderAdapter(stored.provider);
+  if (!adapter) {
+    return stored;
   }
 
   return {
-    provider: "anthropic",
+    provider: adapter.name,
     enabled: true,
-    model: stored.model ?? DEFAULT_ANTHROPIC_MODEL,
-    base_url: stored.base_url ?? DEFAULT_ANTHROPIC_BASE_URL,
+    model: stored.model ?? adapter.default_model,
+    base_url: stored.base_url ?? adapter.default_base_url,
     timeout_ms: stored.timeout_ms ?? DEFAULT_TIMEOUT_MS,
     api_key: stored.api_key
   };
@@ -469,21 +569,22 @@ export function getProviderStatusFromEnv(options?: ProfileStoreOptions): AiProvi
     };
   }
 
-  if (config.provider === "anthropic" && !getProviderApiKey(config)) {
+  const adapter = getProviderAdapter(config.provider);
+  if (!adapter) {
     return {
       ...publicConfig,
       configured: false,
-      reason: "Anthropic API key is missing.",
+      reason: `Provider adapter '${config.provider}' is not registered.`,
       capabilities: [],
       source
     };
   }
 
-  if (config.provider === "openai" && !getProviderApiKey(config)) {
+  if (!getProviderApiKey(config)) {
     return {
       ...publicConfig,
       configured: false,
-      reason: "OpenAI API key is missing.",
+      reason: `API key for provider '${config.provider}' is missing.`,
       capabilities: [],
       source
     };
@@ -534,232 +635,181 @@ function getResponseText(response: JsonSchemaResponse): string | null {
   return null;
 }
 
-async function callOpenAiJson(
-  format: OpenAiResponseFormat,
-  instructions: string,
-  payload: Record<string, unknown>,
-  options?: ProfileStoreOptions
-): Promise<Record<string, unknown> | null> {
-  const { config } = getResolvedProviderConfig(options);
-  const status = getProviderStatusFromEnv(options);
-  if (!status.configured || status.provider !== "openai" || !status.model) {
-    return null;
-  }
+// ---------------------------------------------------------------------------
+// Built-in provider adapters
+// ---------------------------------------------------------------------------
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), status.timeout_ms ?? DEFAULT_TIMEOUT_MS);
-  const baseUrl = status.base_url ?? DEFAULT_OPENAI_BASE_URL;
-  const endpoint = `${baseUrl}/responses`;
-  const requestBody = JSON.stringify({
-    model: status.model,
-    input: [
-      {
-        role: "developer",
-        content: [
-          {
-            type: "input_text",
-            text: `${instructions} Return valid JSON only.`
-          }
-        ]
-      },
-      {
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text: JSON.stringify(payload)
-          }
-        ]
+const openaiAdapter: ProviderAdapter = {
+  name: "openai",
+  display_name: "OpenAI",
+  default_base_url: DEFAULT_OPENAI_BASE_URL,
+  default_model: DEFAULT_OPENAI_MODEL,
+  async callJson(args) {
+    const baseUrl = args.config.base_url ?? DEFAULT_OPENAI_BASE_URL;
+    const endpoint = `${baseUrl}/responses`;
+    const requestBody = JSON.stringify({
+      model: args.config.model ?? DEFAULT_OPENAI_MODEL,
+      input: [
+        {
+          role: "developer",
+          content: [
+            { type: "input_text", text: `${args.instructions} Return valid JSON only.` }
+          ]
+        },
+        {
+          role: "user",
+          content: [{ type: "input_text", text: JSON.stringify(args.payload) }]
+        }
+      ],
+      text: {
+        format: {
+          type: "json_schema",
+          name: args.format.name,
+          strict: true,
+          schema: args.format.schema
+        }
       }
-    ],
-    text: {
-      format: {
-        type: "json_schema",
-        name: format.name,
-        strict: true,
-        schema: format.schema
-      }
-    }
-  });
-  const estimatedPromptTokens = estimateTokens(requestBody);
+    });
 
-  try {
     const attempt = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        authorization: `Bearer ${getProviderApiKey(config)}`
+        authorization: `Bearer ${getProviderApiKey(args.config) ?? ""}`
       },
       body: requestBody,
-      signal: controller.signal
+      signal: args.signal
     });
 
-    const responseText = attempt.body_text ?? "";
     let parsed: Record<string, unknown> | null = null;
-    let success = false;
-
-    if (attempt.response?.ok && responseText) {
+    if (attempt.response?.ok && attempt.body_text) {
       try {
-        const body = JSON.parse(responseText) as JsonSchemaResponse;
+        const body = JSON.parse(attempt.body_text) as JsonSchemaResponse;
         const text = getResponseText(body);
         parsed = text ? (JSON.parse(text) as Record<string, unknown>) : null;
-        success = parsed !== null;
       } catch {
         parsed = null;
       }
     }
 
-    await appendProviderCallAuditLog(
-      {
-        timestamp: new Date().toISOString(),
-        provider: "openai",
-        model: status.model,
-        base_url: baseUrl,
-        endpoint,
-        schema_name: format.name,
-        attempts: attempt.attempts,
-        final_status_code: attempt.final_status_code,
-        final_error: success ? null : attempt.final_error ?? "response parse failure",
-        estimated_prompt_tokens: estimatedPromptTokens,
-        estimated_response_tokens: estimateTokens(responseText),
-        duration_ms: attempt.duration_ms,
-        success
-      },
-      options
-    );
-
-    return parsed;
-  } catch (error) {
-    await appendProviderCallAuditLog(
-      {
-        timestamp: new Date().toISOString(),
-        provider: "openai",
-        model: status.model,
-        base_url: baseUrl,
-        endpoint,
-        schema_name: format.name,
-        attempts: 1,
-        final_status_code: null,
-        final_error: error instanceof Error ? error.message : String(error),
-        estimated_prompt_tokens: estimatedPromptTokens,
-        estimated_response_tokens: 0,
-        duration_ms: 0,
-        success: false
-      },
-      options
-    );
-    return null;
-  } finally {
-    clearTimeout(timeout);
+    return { parsed, attempt, endpoint };
   }
-}
+};
 
-async function callAnthropicJson(
-  format: OpenAiResponseFormat,
-  instructions: string,
-  payload: Record<string, unknown>,
-  options?: ProfileStoreOptions
-): Promise<Record<string, unknown> | null> {
-  const { config } = getResolvedProviderConfig(options);
-  const status = getProviderStatusFromEnv(options);
-  if (!status.configured || status.provider !== "anthropic" || !status.model) {
-    return null;
-  }
+const anthropicAdapter: ProviderAdapter = {
+  name: "anthropic",
+  display_name: "Anthropic",
+  default_base_url: DEFAULT_ANTHROPIC_BASE_URL,
+  default_model: DEFAULT_ANTHROPIC_MODEL,
+  async callJson(args) {
+    const baseUrl = args.config.base_url ?? DEFAULT_ANTHROPIC_BASE_URL;
+    const endpoint = `${baseUrl}/messages`;
+    const schemaSnippet = JSON.stringify(args.format.schema);
+    const requestBody = JSON.stringify({
+      model: args.config.model ?? DEFAULT_ANTHROPIC_MODEL,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: "user",
+          content: `${args.instructions}\nReturn only one valid JSON object matching this schema: ${schemaSnippet}\nPayload:\n${JSON.stringify(args.payload)}`
+        }
+      ]
+    });
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), status.timeout_ms ?? DEFAULT_TIMEOUT_MS);
-  const schemaSnippet = JSON.stringify(format.schema);
-  const baseUrl = status.base_url ?? DEFAULT_ANTHROPIC_BASE_URL;
-  const endpoint = `${baseUrl}/messages`;
-  const requestBody = JSON.stringify({
-    model: status.model,
-    max_tokens: 1200,
-    messages: [
-      {
-        role: "user",
-        content: [
-          `${instructions}\nReturn only one valid JSON object matching this schema: ${schemaSnippet}\nPayload:\n${JSON.stringify(payload)}`
-        ]
-      }
-    ]
-  });
-  const estimatedPromptTokens = estimateTokens(requestBody);
-
-  try {
     const attempt = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": getProviderApiKey(config) ?? "",
+        "x-api-key": getProviderApiKey(args.config) ?? "",
         "anthropic-version": ANTHROPIC_API_VERSION
       },
       body: requestBody,
-      signal: controller.signal
+      signal: args.signal
     });
 
-    const responseText = attempt.body_text ?? "";
     let parsed: Record<string, unknown> | null = null;
-    let success = false;
-
-    if (attempt.response?.ok && responseText) {
+    if (attempt.response?.ok && attempt.body_text) {
       try {
-        const body = JSON.parse(responseText) as AnthropicMessageResponse;
+        const body = JSON.parse(attempt.body_text) as AnthropicMessageResponse;
         const text = body.content
           ?.filter((item) => item.type === "text" && typeof item.text === "string")
           .map((item) => item.text ?? "")
           .join("\n")
           .trim();
         parsed = text ? extractJsonObject(text) : null;
-        success = parsed !== null;
       } catch {
         parsed = null;
       }
     }
 
-    await appendProviderCallAuditLog(
-      {
-        timestamp: new Date().toISOString(),
-        provider: "anthropic",
-        model: status.model,
-        base_url: baseUrl,
-        endpoint,
-        schema_name: format.name,
-        attempts: attempt.attempts,
-        final_status_code: attempt.final_status_code,
-        final_error: success ? null : attempt.final_error ?? "response parse failure",
-        estimated_prompt_tokens: estimatedPromptTokens,
-        estimated_response_tokens: estimateTokens(responseText),
-        duration_ms: attempt.duration_ms,
-        success
-      },
-      options
-    );
-
-    return parsed;
-  } catch (error) {
-    await appendProviderCallAuditLog(
-      {
-        timestamp: new Date().toISOString(),
-        provider: "anthropic",
-        model: status.model,
-        base_url: baseUrl,
-        endpoint,
-        schema_name: format.name,
-        attempts: 1,
-        final_status_code: null,
-        final_error: error instanceof Error ? error.message : String(error),
-        estimated_prompt_tokens: estimatedPromptTokens,
-        estimated_response_tokens: 0,
-        duration_ms: 0,
-        success: false
-      },
-      options
-    );
-    return null;
-  } finally {
-    clearTimeout(timeout);
+    return { parsed, attempt, endpoint };
   }
-}
+};
+
+/**
+ * Universal OpenAI-compatible adapter. Works against any server that speaks
+ * the OpenAI chat-completions shape (Ollama, vLLM, LiteLLM, OpenRouter, Groq,
+ * Together, Fireworks, Azure OpenAI, and so on). Point it at any `base_url`
+ * ending in `/v1` and PSON5 will use `/chat/completions` with JSON-mode
+ * structured outputs.
+ */
+const openaiCompatibleAdapter: ProviderAdapter = {
+  name: "openai-compatible",
+  display_name: "OpenAI-compatible endpoint",
+  default_base_url: "http://localhost:11434/v1",
+  default_model: "",
+  async callJson(args) {
+    const baseUrl = args.config.base_url ?? this.default_base_url;
+    const endpoint = `${baseUrl}/chat/completions`;
+    const schemaSnippet = JSON.stringify(args.format.schema);
+    const requestBody = JSON.stringify({
+      model: args.config.model ?? this.default_model,
+      response_format: { type: "json_object" },
+      messages: [
+        {
+          role: "system",
+          content: `${args.instructions}\nReply with ONE valid JSON object matching this schema: ${schemaSnippet}`
+        },
+        {
+          role: "user",
+          content: JSON.stringify(args.payload)
+        }
+      ]
+    });
+
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    const key = getProviderApiKey(args.config);
+    if (key) {
+      headers.authorization = `Bearer ${key}`;
+    }
+
+    const attempt = await fetchWithRetry(endpoint, {
+      method: "POST",
+      headers,
+      body: requestBody,
+      signal: args.signal
+    });
+
+    let parsed: Record<string, unknown> | null = null;
+    if (attempt.response?.ok && attempt.body_text) {
+      try {
+        const body = JSON.parse(attempt.body_text) as {
+          choices?: Array<{ message?: { content?: string } }>;
+        };
+        const text = body.choices?.[0]?.message?.content?.trim();
+        parsed = text ? extractJsonObject(text) : null;
+      } catch {
+        parsed = null;
+      }
+    }
+
+    return { parsed, attempt, endpoint };
+  }
+};
+
+registerProviderAdapter(openaiAdapter);
+registerProviderAdapter(anthropicAdapter);
+registerProviderAdapter(openaiCompatibleAdapter);
 
 async function callProviderJson(
   format: OpenAiResponseFormat,
@@ -768,16 +818,70 @@ async function callProviderJson(
   options?: ProfileStoreOptions
 ): Promise<Record<string, unknown> | null> {
   const status = getProviderStatusFromEnv(options);
-
-  if (status.provider === "openai") {
-    return callOpenAiJson(format, instructions, payload, options);
+  if (!status.configured || !status.provider || !status.model) {
+    return null;
   }
 
-  if (status.provider === "anthropic") {
-    return callAnthropicJson(format, instructions, payload, options);
+  const adapter = getProviderAdapter(status.provider);
+  if (!adapter) {
+    return null;
   }
 
-  return null;
+  const { config } = getResolvedProviderConfig(options);
+  const timeoutMs = status.timeout_ms ?? DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+  const requestStartedAt = Date.now();
+  let result: ProviderAdapterCallResult | null = null;
+  let caughtError: unknown = null;
+
+  try {
+    result = await adapter.callJson({
+      config,
+      format,
+      instructions,
+      payload,
+      signal: controller.signal
+    });
+  } catch (error) {
+    caughtError = error;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+
+  const responseText = result?.attempt.body_text ?? "";
+  const success = Boolean(result?.parsed !== null && result?.parsed !== undefined);
+  const endpoint =
+    result?.endpoint ?? `${config.base_url ?? adapter.default_base_url}/<unknown>`;
+  const estimatedPromptTokens = estimateTokens(JSON.stringify(payload) + instructions);
+
+  await appendProviderCallAuditLog(
+    {
+      timestamp: new Date().toISOString(),
+      provider: adapter.name,
+      model: status.model,
+      base_url: config.base_url ?? adapter.default_base_url,
+      endpoint,
+      schema_name: format.name,
+      attempts: result?.attempt.attempts ?? 1,
+      final_status_code: result?.attempt.final_status_code ?? null,
+      final_error: success
+        ? null
+        : result?.attempt.final_error ??
+          (caughtError instanceof Error
+            ? caughtError.message
+            : caughtError
+              ? String(caughtError)
+              : "response parse failure"),
+      estimated_prompt_tokens: estimatedPromptTokens,
+      estimated_response_tokens: estimateTokens(responseText),
+      duration_ms: result?.attempt.duration_ms ?? Date.now() - requestStartedAt,
+      success
+    },
+    options
+  );
+
+  return result?.parsed ?? null;
 }
 
 async function appendProviderAuditLog(input: AuditLogInput): Promise<void> {

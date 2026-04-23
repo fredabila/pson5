@@ -3,7 +3,16 @@ export type AccessLevel = "public" | "private" | "restricted";
 export type ConfidenceMethod = "rule" | "statistical" | "hybrid";
 export type QuestionType = "single_choice" | "free_text" | "scenario";
 export type QuestionSensitivity = "low" | "standard" | "restricted";
-export type AiProviderName = "openai" | "anthropic";
+/**
+ * Name of a provider adapter. The built-in adapters are `"openai"`,
+ * `"anthropic"`, and `"openai-compatible"`, but any string accepted by the
+ * provider-engine registry is valid — custom adapters registered via
+ * `registerProviderAdapter(...)` can carry their own name.
+ */
+export type AiProviderName = string;
+
+/** Names of the adapters shipped with @pson5/provider-engine. */
+export type BuiltInProviderName = "openai" | "anthropic" | "openai-compatible";
 export type ProviderOperation = "modeling" | "simulation";
 export type ExportRedactionLevel = "full" | "safe";
 export type ProviderConfigSource = "env" | "file" | "none";
