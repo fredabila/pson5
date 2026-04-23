@@ -1,0 +1,31 @@
+{
+  "name": "@pson5/remotion-teaser",
+  "version": "0.1.0",
+  "private": true,
+  "description": "60-second Remotion teaser for PSON5. Dark editorial aesthetic matching the landing.",
+  "type": "module",
+  "scripts": {
+    "preview": "remotion preview src/index.ts",
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts Teaser out/pson5-teaser.mp4 --concurrency=2",
+    "render-hq": "remotion render src/index.ts Teaser out/pson5-teaser.mp4 --concurrency=4 --crf=16 --codec=h264 --pixel-format=yuv420p"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.400",
+    "@remotion/fonts": "^4.0.400",
+    "@remotion/google-fonts": "^4.0.400",
+    "@remotion/paths": "^4.0.400",
+    "@remotion/renderer": "^4.0.400",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.400"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

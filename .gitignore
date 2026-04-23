@@ -13,3 +13,6 @@ apps/api/.pson5-store/
 apps/api/.pson5-store*/
 .claude/
 examples/claude-driven-persona/output/
+examples/remotion-teaser/node_modules/
+examples/remotion-teaser/out/
+examples/remotion-teaser/.remotion/
