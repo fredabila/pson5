@@ -91,8 +91,37 @@ const HELP_TOPICS = ["flow", "commands", "learning", "simulate", "agent", "examp
 const MAX_ACTIVITY_ITEMS = 8;
 const MAX_VIEW_LINES = 28;
 
+let jsonMode = false;
+
+function setJsonMode(value: boolean): void {
+  jsonMode = value;
+}
+
+export function outputJson(value: unknown): void {
+  if (jsonMode) {
+    process.stdout.write(`${JSON.stringify({ success: true, data: value })}\n`);
+  } else {
+    process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+  }
+}
+
+function reportCliError(error: unknown): void {
+  const message = error instanceof Error ? error.message : "Unknown error.";
+  const maybeCode =
+    error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
+  const code = typeof maybeCode === "string" ? maybeCode : "cli_error";
+  if (jsonMode) {
+    process.stdout.write(`${JSON.stringify({ success: false, error: { code, message } })}\n`);
+  } else {
+    console.error(message);
+  }
+}
+
 function printUsage(): void {
-  console.log(`${chalk.bold.cyan("pson <command>")}
+  console.log(`${chalk.bold.cyan("pson <command> [--json]")}
+
+Global flags:
+  --json                              Emit machine-readable { success, data } / { success, error } output
 
 Commands:
   init <userId> [--store <dir>]      Create and persist a minimal .pson profile
@@ -979,21 +1008,21 @@ function printProfileInspection(profile: PsonProfile, mode: string): void {
   printDivider(`Inspect: ${mode}`);
 
   if (mode === "observed") {
-    console.log(JSON.stringify(profile.layers.observed, null, 2));
+    outputJson(profile.layers.observed);
     return;
   }
 
   if (mode === "inferred") {
-    console.log(JSON.stringify(profile.layers.inferred, null, 2));
+    outputJson(profile.layers.inferred);
     return;
   }
 
   if (mode === "privacy") {
-    console.log(JSON.stringify({ consent: profile.consent, privacy: profile.privacy }, null, 2));
+    outputJson({ consent: profile.consent, privacy: profile.privacy });
     return;
   }
 
-  console.log(JSON.stringify(profile, null, 2));
+  outputJson(profile);
 }
 
 function parseSimulationContext(raw: string): Record<string, unknown> {
@@ -1531,7 +1560,10 @@ async function startConsole(storeRoot: string, profileId?: string): Promise<void
 }
 
 async function main(argv: string[]): Promise<void> {
-  const [command, ...rest] = argv;
+  const args = [...argv];
+  const useJson = consumeFlag(args, "--json");
+  setJsonMode(useJson);
+  const [command, ...rest] = args;
 
   if (!command) {
     printUsage();
@@ -1589,18 +1621,12 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const profile = await initProfile({ user_id: userId }, { rootDir: storeRoot });
-    console.log(
-      JSON.stringify(
-        {
-          profile_id: profile.profile_id,
-          revision: profile.metadata.revision,
-          store_root: storeRoot,
-          current_path: path.join(storeRoot, "profiles", profile.profile_id, "current.json")
-        },
-        null,
-        2
-      )
-    );
+    outputJson({
+      profile_id: profile.profile_id,
+      revision: profile.metadata.revision,
+      store_root: storeRoot,
+      current_path: path.join(storeRoot, "profiles", profile.profile_id, "current.json")
+    });
     return;
   }
 
@@ -1625,7 +1651,7 @@ async function main(argv: string[]): Promise<void> {
       { rootDir: storeRoot }
     );
 
-    console.log(JSON.stringify(result, null, 2));
+    outputJson(result);
     return;
   }
 
@@ -1644,17 +1670,17 @@ async function main(argv: string[]): Promise<void> {
       min_confidence: minConfidence
     };
     const context = await buildStoredAgentContext(profileId, options, { rootDir: storeRoot });
-    console.log(JSON.stringify(context, null, 2));
+    outputJson(context);
     return;
   }
 
   if (command === "provider-status") {
-    console.log(JSON.stringify(getProviderStatusFromEnv({ rootDir: storeRoot }), null, 2));
+    outputJson(getProviderStatusFromEnv({ rootDir: storeRoot }));
     return;
   }
 
   if (command === "provider-config") {
-    console.log(JSON.stringify(getStoredProviderConfig({ rootDir: storeRoot }), null, 2));
+    outputJson(getStoredProviderConfig({ rootDir: storeRoot }));
     return;
   }
 
@@ -1675,7 +1701,7 @@ async function main(argv: string[]): Promise<void> {
       },
       { rootDir: storeRoot }
     );
-    console.log(JSON.stringify(saved, null, 2));
+    outputJson(saved);
     return;
   }
 
@@ -1685,7 +1711,7 @@ async function main(argv: string[]): Promise<void> {
   }
 
   if (command === "provider-clear") {
-    console.log(JSON.stringify(await clearStoredProviderConfig({ rootDir: storeRoot }), null, 2));
+    outputJson(await clearStoredProviderConfig({ rootDir: storeRoot }));
     return;
   }
 
@@ -1697,17 +1723,17 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const profile = await loadProfile(profileId, { rootDir: storeRoot });
-    console.log(JSON.stringify(getProviderPolicyStatus(profile, operation, { rootDir: storeRoot }), null, 2));
+    outputJson(getProviderPolicyStatus(profile, operation, { rootDir: storeRoot }));
     return;
   }
 
   if (command === "neo4j-status") {
-    console.log(JSON.stringify(await getNeo4jStatus({ rootDir: storeRoot }), null, 2));
+    outputJson(await getNeo4jStatus({ rootDir: storeRoot }));
     return;
   }
 
   if (command === "neo4j-config") {
-    console.log(JSON.stringify(getStoredNeo4jConfig({ rootDir: storeRoot }), null, 2));
+    outputJson(getStoredNeo4jConfig({ rootDir: storeRoot }));
     return;
   }
 
@@ -1726,7 +1752,7 @@ async function main(argv: string[]): Promise<void> {
       },
       { rootDir: storeRoot }
     );
-    console.log(JSON.stringify(saved, null, 2));
+    outputJson(saved);
     return;
   }
 
@@ -1736,7 +1762,7 @@ async function main(argv: string[]): Promise<void> {
   }
 
   if (command === "neo4j-clear") {
-    console.log(JSON.stringify(clearStoredNeo4jConfig({ rootDir: storeRoot }), null, 2));
+    outputJson(clearStoredNeo4jConfig({ rootDir: storeRoot }));
     return;
   }
 
@@ -1746,7 +1772,7 @@ async function main(argv: string[]): Promise<void> {
       throw new Error("neo4j-sync requires a profile id.");
     }
 
-    console.log(JSON.stringify(await syncStoredProfileKnowledgeGraph(profileId, { rootDir: storeRoot }), null, 2));
+    outputJson(await syncStoredProfileKnowledgeGraph(profileId, { rootDir: storeRoot }));
     return;
   }
 
@@ -1757,7 +1783,7 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const profile = await loadProfile(profileId, { rootDir: storeRoot });
-    console.log(JSON.stringify(profile.knowledge_graph, null, 2));
+    outputJson(profile.knowledge_graph);
     return;
   }
 
@@ -1768,7 +1794,7 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const profile = await loadProfile(profileId, { rootDir: storeRoot });
-    console.log(JSON.stringify(getActiveStateSnapshot(profile), null, 2));
+    outputJson(getActiveStateSnapshot(profile));
     return;
   }
 
@@ -1780,7 +1806,7 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const profile = await loadProfile(profileId, { rootDir: storeRoot });
-    console.log(JSON.stringify({ support: explainPredictionSupport(profile, prediction) }, null, 2));
+    outputJson({ support: explainPredictionSupport(profile, prediction) });
     return;
   }
 
@@ -1801,16 +1827,10 @@ async function main(argv: string[]): Promise<void> {
       { rootDir: storeRoot }
     );
 
-    console.log(
-      JSON.stringify(
-        {
-          session_id: result.session.session_id,
-          questions: result.questions
-        },
-        null,
-        2
-      )
-    );
+    outputJson({
+      session_id: result.session.session_id,
+      questions: result.questions
+    });
     return;
   }
 
@@ -1842,18 +1862,12 @@ async function main(argv: string[]): Promise<void> {
       { rootDir: storeRoot }
     );
 
-    console.log(
-      JSON.stringify(
-        {
-          session_id: result.session.session_id,
-          revision: result.profile.metadata.revision,
-          updated_fields: result.updated_fields,
-          next_questions: result.next_questions
-        },
-        null,
-        2
-      )
-    );
+    outputJson({
+      session_id: result.session.session_id,
+      revision: result.profile.metadata.revision,
+      updated_fields: result.updated_fields,
+      next_questions: result.next_questions
+    });
     return;
   }
 
@@ -1864,7 +1878,7 @@ async function main(argv: string[]): Promise<void> {
     }
 
     const profile = await loadProfile(profileId, { rootDir: storeRoot });
-    console.log(JSON.stringify(profile, null, 2));
+    outputJson(profile);
     return;
   }
 
@@ -1876,7 +1890,7 @@ async function main(argv: string[]): Promise<void> {
 
     const profile = await loadProfileByUserId(userId, { rootDir: storeRoot });
     const profileIds = await findProfilesByUserId(userId, { rootDir: storeRoot });
-    console.log(JSON.stringify({ user_id: userId, profile_ids: profileIds, profile }, null, 2));
+    outputJson({ user_id: userId, profile_ids: profileIds, profile });
     return;
   }
 
@@ -1903,18 +1917,12 @@ async function main(argv: string[]): Promise<void> {
     const raw = readFileSync(filePath, "utf8");
     const parsed = JSON.parse(raw);
     const profile = await importProfileDocument(parsed, { rootDir: storeRoot, overwrite });
-    console.log(
-      JSON.stringify(
-        {
-          profile_id: profile.profile_id,
-          revision: profile.metadata.revision,
-          imported: true,
-          overwrite
-        },
-        null,
-        2
-      )
-    );
+    outputJson({
+      profile_id: profile.profile_id,
+      revision: profile.metadata.revision,
+      imported: true,
+      overwrite
+    });
     return;
   }
 
@@ -1927,7 +1935,7 @@ async function main(argv: string[]): Promise<void> {
     const raw = readFileSync(filePath, "utf8");
     const parsed = JSON.parse(raw);
     const result = validateProfile(parsed);
-    console.log(JSON.stringify(result, null, 2));
+    outputJson(result);
     process.exitCode = result.success ? 0 : 1;
     return;
   }
@@ -1937,7 +1945,6 @@ async function main(argv: string[]): Promise<void> {
 }
 
 main(process.argv.slice(2)).catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : "Unknown error.";
-  console.error(message);
+  reportCliError(error);
   process.exitCode = 1;
 });
