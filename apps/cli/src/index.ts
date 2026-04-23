@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import path from "node:path";
 import process from "node:process";
 import readline, { type Completer } from "node:readline";
@@ -105,54 +106,411 @@ export function outputJson(value: unknown): void {
   }
 }
 
-function reportCliError(error: unknown): void {
+/**
+ * Canonical CLI error codes. Downstream scripts can branch on `error.code`
+ * from the `--json` envelope instead of string-matching messages.
+ */
+const ERROR_CODE_MATCHERS: Array<{ code: string; test: (message: string) => boolean }> = [
+  {
+    code: "validation_error",
+    test: (m) =>
+      /requires?\b|must be\b|invalid\b|expects?\b|unknown question\b|missing\b|not a valid\b/i.test(m)
+  },
+  { code: "profile_not_found", test: (m) => /was not found|not found for user/i.test(m) },
+  { code: "conflict", test: (m) => /already exists/i.test(m) },
+  { code: "file_not_found", test: (m) => /ENOENT|no such file/i.test(m) }
+];
+
+function classifyError(error: unknown): { code: string; message: string } {
   const message = error instanceof Error ? error.message : "Unknown error.";
-  const maybeCode =
+  const attached =
     error instanceof Error ? (error as Error & { code?: unknown }).code : undefined;
-  const code = typeof maybeCode === "string" ? maybeCode : "cli_error";
+  if (typeof attached === "string" && attached.length > 0) {
+    return { code: attached, message };
+  }
+  const matched = ERROR_CODE_MATCHERS.find((entry) => entry.test(message));
+  return { code: matched?.code ?? "cli_error", message };
+}
+
+function reportCliError(error: unknown): void {
+  const { code, message } = classifyError(error);
   if (jsonMode) {
     process.stdout.write(`${JSON.stringify({ success: false, error: { code, message } })}\n`);
   } else {
-    console.error(message);
+    console.error(`${chalk.red("error")} ${message}  ${chalk.dim(`(${code})`)}`);
   }
 }
 
+/**
+ * Resolve the CLI version from its own package.json at runtime. Tries the
+ * published package layout first (dist/apps/cli/src -> package.json at the
+ * install root) and falls back to the dev layout (dist/apps/cli/src ->
+ * apps/cli/package.json).
+ */
+function getCliVersion(): string {
+  const candidates = [
+    "../../../../package.json", // published (<root>/dist/apps/cli/src/index.js)
+    "../../../../apps/cli/package.json", // dev workspace root layout
+    "../../../package.json" // alternative dev
+  ];
+  const require = createRequire(import.meta.url);
+  for (const candidate of candidates) {
+    try {
+      const pkg = require(candidate) as { name?: string; version?: string };
+      if (typeof pkg.version === "string" && pkg.name?.includes("pson5")) {
+        return pkg.version;
+      }
+    } catch {
+      // try the next candidate
+    }
+  }
+  return "0.0.0";
+}
+
+interface CommandHelp {
+  name: string;
+  category: "Profiles" | "Learning" | "Simulation" | "Agent" | "Provider" | "Neo4j" | "Console" | "Meta";
+  synopsis: string;
+  summary: string;
+  details?: string;
+  flags?: Array<{ name: string; description: string }>;
+  examples?: string[];
+}
+
+const GLOBAL_FLAGS: Array<{ name: string; description: string }> = [
+  { name: "--json", description: "Emit machine-readable { success, data } / { success, error } output." },
+  { name: "--store <dir>", description: "Root of the PSON5 store (default .pson5-store)." },
+  { name: "--help, -h", description: "Show help for the CLI or a specific command." },
+  { name: "--version, -v", description: "Print the CLI version." }
+];
+
+const COMMANDS: CommandHelp[] = [
+  {
+    name: "init",
+    category: "Profiles",
+    synopsis: "pson init <userId> [--store <dir>]",
+    summary: "Create and persist a minimal .pson profile.",
+    examples: ["pson init user_123 --store .pson5-store", "pson init user_123 --json"]
+  },
+  {
+    name: "inspect",
+    category: "Profiles",
+    synopsis: "pson inspect <profileId> [--store <dir>]",
+    summary: "Load a stored profile and print it as JSON."
+  },
+  {
+    name: "inspect-user",
+    category: "Profiles",
+    synopsis: "pson inspect-user <userId> [--store <dir>]",
+    summary: "Load the latest profile mapped to a user id plus the full profile_ids list."
+  },
+  {
+    name: "export",
+    category: "Profiles",
+    synopsis: "pson export <profileId> [--store <dir>] [--redaction <full|safe>]",
+    summary: "Export a stored profile as JSON. Defaults to the adapter default; pass --redaction safe for a redacted variant."
+  },
+  {
+    name: "import",
+    category: "Profiles",
+    synopsis: "pson import <file> [--store <dir>] [--overwrite]",
+    summary: "Import a .pson JSON file. Fails with conflict unless --overwrite is set."
+  },
+  {
+    name: "validate",
+    category: "Profiles",
+    synopsis: "pson validate <file>",
+    summary: "Validate a .pson JSON file against the schema. Exits 1 on validation failure."
+  },
+  {
+    name: "question-next",
+    category: "Learning",
+    synopsis: "pson question-next <profileId> [--session <id>] [--domains <csv>] [--depth <level>] [--limit <n>] [--store <dir>]",
+    summary: "Fetch the next adaptive question(s). Opens a new session when --session is omitted.",
+    details: "Response includes session.fatigue_score, session.confidence_gaps, session.contradiction_flags, and session.stop_reason alongside the selected questions."
+  },
+  {
+    name: "learn",
+    category: "Learning",
+    synopsis: "pson learn <profileId> <questionId> <value> [--session <id>] [--domains <csv>] [--depth <level>] [--store <dir>]",
+    summary: "Submit a single answer. Runs the full pipeline (modeling → state → graph → save) and bumps the revision."
+  },
+  {
+    name: "simulate",
+    category: "Simulation",
+    synopsis: "pson simulate <profileId> --context <json> [--domains <csv>] [--store <dir>]",
+    summary: "Run a scenario simulation.",
+    examples: [
+      `pson simulate pson_123 --context '{"task":"study","deadline_days":2}' --domains core,education`
+    ]
+  },
+  {
+    name: "agent-context",
+    category: "Agent",
+    synopsis: "pson agent-context <profileId> --intent <text> [--domains <csv>] [--max-items <n>] [--min-confidence <n>] [--include-predictions] [--store <dir>]",
+    summary: "Build the standardized agent-facing projection for the profile.",
+    details: "The response includes redaction_notes explaining any filtered fields (restricted_field, low_confidence, consent_not_granted)."
+  },
+  {
+    name: "state",
+    category: "Agent",
+    synopsis: "pson state <profileId> [--store <dir>]",
+    summary: "Print the active state snapshot with decay + trigger evaluation applied."
+  },
+  {
+    name: "graph",
+    category: "Agent",
+    synopsis: "pson graph <profileId> [--store <dir>]",
+    summary: "Print profile.knowledge_graph (nodes + edges)."
+  },
+  {
+    name: "explain",
+    category: "Agent",
+    synopsis: "pson explain <profileId> <prediction> [--store <dir>]",
+    summary: "Return path-formatted support strings for a prediction."
+  },
+  {
+    name: "provider-status",
+    category: "Provider",
+    synopsis: "pson provider-status",
+    summary: "Print the current provider configuration as resolved from env + stored config."
+  },
+  {
+    name: "provider-config",
+    category: "Provider",
+    synopsis: "pson provider-config [--store <dir>]",
+    summary: "Print the stored provider config summary (without the API key)."
+  },
+  {
+    name: "provider-set",
+    category: "Provider",
+    synopsis: "pson provider-set <openai|anthropic> --api-key <key> [--model <name>] [--base-url <url>] [--timeout-ms <n>] [--store <dir>]",
+    summary: "Save a provider configuration to <store>/config/provider.json."
+  },
+  {
+    name: "provider-wizard",
+    category: "Provider",
+    synopsis: "pson provider-wizard [--store <dir>]",
+    summary: "Interactive Clack-based provider setup."
+  },
+  {
+    name: "provider-clear",
+    category: "Provider",
+    synopsis: "pson provider-clear [--store <dir>]",
+    summary: "Remove the stored provider configuration."
+  },
+  {
+    name: "provider-policy",
+    category: "Provider",
+    synopsis: "pson provider-policy <profileId> <modeling|simulation> [--store <dir>]",
+    summary: "Check whether provider-backed modeling or simulation is allowed for a profile."
+  },
+  {
+    name: "neo4j-status",
+    category: "Neo4j",
+    synopsis: "pson neo4j-status [--store <dir>]",
+    summary: "Check Neo4j configuration and connectivity."
+  },
+  {
+    name: "neo4j-config",
+    category: "Neo4j",
+    synopsis: "pson neo4j-config [--store <dir>]",
+    summary: "Print the stored Neo4j config summary (without the password)."
+  },
+  {
+    name: "neo4j-set",
+    category: "Neo4j",
+    synopsis: "pson neo4j-set --uri <uri> --username <user> --password <password> [--database <name>] [--disabled] [--store <dir>]",
+    summary: "Save a Neo4j connection to <store>/config/neo4j.json."
+  },
+  {
+    name: "neo4j-wizard",
+    category: "Neo4j",
+    synopsis: "pson neo4j-wizard [--store <dir>]",
+    summary: "Interactive Clack-based Neo4j setup."
+  },
+  {
+    name: "neo4j-clear",
+    category: "Neo4j",
+    synopsis: "pson neo4j-clear [--store <dir>]",
+    summary: "Remove the stored Neo4j configuration."
+  },
+  {
+    name: "neo4j-sync",
+    category: "Neo4j",
+    synopsis: "pson neo4j-sync <profileId> [--store <dir>]",
+    summary: "Sync the profile knowledge graph into Neo4j (idempotent)."
+  },
+  {
+    name: "console",
+    category: "Console",
+    synopsis: "pson console [--profile <id>] [--store <dir>]",
+    summary: "Start the Ink/React interactive console."
+  },
+  {
+    name: "console-legacy",
+    category: "Console",
+    synopsis: "pson console-legacy [--profile <id>] [--store <dir>]",
+    summary: "Start the older readline-based console."
+  },
+  {
+    name: "mcp-stdio",
+    category: "Console",
+    synopsis: "pson mcp-stdio [--store <dir>]",
+    summary: "Start a local stdio MCP server exposing PSON5 agent tools."
+  },
+  {
+    name: "completion",
+    category: "Meta",
+    synopsis: "pson completion <bash|zsh|fish>",
+    summary: "Print a shell completion script to stdout.",
+    examples: [
+      "pson completion bash > /etc/bash_completion.d/pson",
+      `pson completion zsh > "\${fpath[1]}/_pson"`,
+      "pson completion fish > ~/.config/fish/completions/pson.fish"
+    ]
+  },
+  {
+    name: "help",
+    category: "Meta",
+    synopsis: "pson help [command]",
+    summary: "Show help for the CLI or for a specific command."
+  }
+];
+
+const COMMAND_INDEX = new Map(COMMANDS.map((entry) => [entry.name, entry] as const));
+const CATEGORY_ORDER: CommandHelp["category"][] = [
+  "Profiles",
+  "Learning",
+  "Simulation",
+  "Agent",
+  "Provider",
+  "Neo4j",
+  "Console",
+  "Meta"
+];
+
+function formatUsageList(): string {
+  const byCategory = new Map<CommandHelp["category"], CommandHelp[]>();
+  for (const category of CATEGORY_ORDER) {
+    byCategory.set(category, []);
+  }
+  for (const command of COMMANDS) {
+    byCategory.get(command.category)?.push(command);
+  }
+
+  const nameWidth = Math.max(...COMMANDS.map((c) => c.name.length)) + 2;
+
+  const lines: string[] = [];
+  for (const category of CATEGORY_ORDER) {
+    const entries = byCategory.get(category) ?? [];
+    if (entries.length === 0) continue;
+    lines.push(chalk.bold.white(category));
+    for (const entry of entries) {
+      lines.push(`  ${chalk.cyan(entry.name.padEnd(nameWidth))}${entry.summary}`);
+    }
+    lines.push("");
+  }
+
+  return lines.join("\n");
+}
+
 function printUsage(): void {
-  console.log(`${chalk.bold.cyan("pson <command> [--json]")}
+  const globalFlags = GLOBAL_FLAGS.map(
+    (flag) => `  ${chalk.cyan(flag.name.padEnd(22))}${flag.description}`
+  ).join("\n");
 
-Global flags:
-  --json                              Emit machine-readable { success, data } / { success, error } output
+  console.log(
+    `${chalk.bold.cyan("pson")} ${chalk.dim("<command> [flags]")}
+${chalk.dim("Personalization infrastructure — open standard + engines + agent transports.")}
 
-Commands:
-  init <userId> [--store <dir>]      Create and persist a minimal .pson profile
-  inspect <profileId> [--store <dir>]  Load a stored profile and print it
-  inspect-user <userId> [--store <dir>] Load the latest profile mapped to a user id and print it
-  export <profileId> [--store <dir>] [--redaction <full|safe>]   Export a stored profile as JSON
-  import <file> [--store <dir>] [--overwrite]  Import a .pson JSON file
-  question-next <profileId> [--session <id>] [--domains <csv>] [--depth <level>] [--limit <n>] [--store <dir>]
-  learn <profileId> <questionId> <value> [--session <id>] [--domains <csv>] [--depth <level>] [--store <dir>]
-  simulate <profileId> --context <json> [--domains <csv>] [--store <dir>]
-  agent-context <profileId> --intent <text> [--domains <csv>] [--max-items <n>] [--min-confidence <n>] [--include-predictions] [--store <dir>]
-  provider-status
-  provider-config [--store <dir>]    Show stored provider config summary
-  provider-set <openai|anthropic> --api-key <key> [--model <name>] [--base-url <url>] [--timeout-ms <n>] [--store <dir>]
-  provider-wizard [--store <dir>]    Interactive provider setup via Clack prompts
-  provider-clear [--store <dir>]     Remove stored provider config
-  provider-policy <profileId> <modeling|simulation> [--store <dir>]
-  neo4j-status [--store <dir>]       Check Neo4j configuration and connectivity
-  neo4j-config [--store <dir>]       Show stored Neo4j config summary
-  neo4j-set --uri <uri> --username <user> --password <password> [--database <name>] [--disabled] [--store <dir>]
-  neo4j-wizard [--store <dir>]       Interactive Neo4j setup via Clack prompts
-  neo4j-clear [--store <dir>]        Remove stored Neo4j config
-  neo4j-sync <profileId> [--store <dir>]   Sync the profile knowledge graph into Neo4j
-  graph <profileId> [--store <dir>]
-  state <profileId> [--store <dir>]
-  explain <profileId> <prediction> [--store <dir>]
-  console [--profile <id>] [--store <dir>]  Start the interactive terminal console
-  mcp-stdio [--store <dir>]         Start the local stdio MCP server
-  console-legacy [--profile <id>] [--store <dir>]  Start the older readline console
-  validate <file>                    Validate a .pson JSON file
-`);
+${chalk.bold.white("Global flags")}
+${globalFlags}
+
+${formatUsageList()}${chalk.dim(`Run ${chalk.cyan("pson help <command>")} for detailed help on a specific command.`)}
+`
+  );
+}
+
+function printCommandHelp(name: string): boolean {
+  const entry = COMMAND_INDEX.get(name);
+  if (!entry) {
+    console.error(`Unknown command: ${chalk.red(name)}`);
+    console.error(`Run ${chalk.cyan("pson --help")} to see available commands.`);
+    return false;
+  }
+
+  const lines = [
+    `${chalk.bold.cyan(entry.name)} ${chalk.dim(`[${entry.category}]`)}`,
+    "",
+    entry.summary,
+    "",
+    chalk.bold.white("Synopsis"),
+    `  ${entry.synopsis}`
+  ];
+
+  if (entry.details) {
+    lines.push("", chalk.bold.white("Details"), `  ${entry.details}`);
+  }
+
+  if (entry.flags && entry.flags.length > 0) {
+    lines.push("", chalk.bold.white("Flags"));
+    const width = Math.max(...entry.flags.map((f) => f.name.length)) + 2;
+    for (const flag of entry.flags) {
+      lines.push(`  ${chalk.cyan(flag.name.padEnd(width))}${flag.description}`);
+    }
+  }
+
+  if (entry.examples && entry.examples.length > 0) {
+    lines.push("", chalk.bold.white("Examples"));
+    for (const example of entry.examples) {
+      lines.push(`  ${chalk.dim("$")} ${example}`);
+    }
+  }
+
+  console.log(lines.join("\n"));
+  return true;
+}
+
+function buildCompletionScript(shell: string): string {
+  const commands = COMMANDS.map((c) => c.name).join(" ");
+  if (shell === "bash") {
+    return `# pson bash completion — install with: pson completion bash > /etc/bash_completion.d/pson
+_pson_complete() {
+  local cur cmds
+  cur="\${COMP_WORDS[COMP_CWORD]}"
+  cmds="${commands} --help -h --version -v --json"
+  COMPREPLY=( $(compgen -W "\${cmds}" -- "\${cur}") )
+  return 0
+}
+complete -F _pson_complete pson
+`;
+  }
+
+  if (shell === "zsh") {
+    return `#compdef pson
+# pson zsh completion — install with: pson completion zsh > "\${fpath[1]}/_pson"
+_pson() {
+  local -a cmds
+  cmds=(${COMMANDS.map((c) => `'${c.name}:${c.summary.replace(/'/g, "'\\''")}'`).join(" ")})
+  _describe 'pson command' cmds
+}
+_pson "$@"
+`;
+  }
+
+  if (shell === "fish") {
+    return `# pson fish completion — install with: pson completion fish > ~/.config/fish/completions/pson.fish
+complete -c pson -f
+${COMMANDS.map((c) => `complete -c pson -n '__fish_use_subcommand' -a '${c.name}' -d '${c.summary.replace(/'/g, "'\\''")}'`).join("\n")}
+complete -c pson -l json -d 'Emit machine-readable output'
+complete -c pson -l store -r -d 'Store root directory'
+complete -c pson -l help -s h -d 'Show help'
+complete -c pson -l version -s v -d 'Print version'
+`;
+  }
+
+  throw new Error(`Unsupported shell '${shell}'. Use bash, zsh, or fish.`);
 }
 
 function consumeOption(args: string[], name: string): string | undefined {
@@ -1563,10 +1921,58 @@ async function main(argv: string[]): Promise<void> {
   const args = [...argv];
   const useJson = consumeFlag(args, "--json");
   setJsonMode(useJson);
+
+  // Parse global --help / -h / --version / -v ahead of the command dispatch
+  // so they work in any position.
+  const wantsHelp = consumeFlag(args, "--help") || consumeFlag(args, "-h");
+  const wantsVersion = consumeFlag(args, "--version") || consumeFlag(args, "-v");
+
+  if (wantsVersion) {
+    const version = getCliVersion();
+    if (jsonMode) {
+      outputJson({ name: "@pson5/cli", version });
+    } else {
+      console.log(version);
+    }
+    return;
+  }
+
   const [command, ...rest] = args;
+
+  if (wantsHelp) {
+    if (!command) {
+      printUsage();
+      return;
+    }
+    if (!printCommandHelp(command)) {
+      process.exitCode = 1;
+    }
+    return;
+  }
 
   if (!command) {
     printUsage();
+    return;
+  }
+
+  if (command === "help") {
+    const target = rest[0];
+    if (!target) {
+      printUsage();
+      return;
+    }
+    if (!printCommandHelp(target)) {
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (command === "completion") {
+    const shell = rest[0];
+    if (!shell) {
+      throw new Error("completion requires a shell: bash, zsh, or fish.");
+    }
+    process.stdout.write(buildCompletionScript(shell));
     return;
   }
 

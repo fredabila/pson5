@@ -75,6 +75,66 @@ async function main() {
     const legacyError = runCli(["init"], { expectNonZero: true });
     assert.equal(legacyError.stdout.trim(), "");
     assert.match(legacyError.stderr, /user id/);
+    // And the typed error code is attached
+    assert.match(legacyError.stderr, /validation_error/);
+
+    // --version prints the package version
+    const versionText = runCli(["--version"]);
+    assert.match(versionText.stdout.trim(), /^\d+\.\d+\.\d+$/, "version must be semver");
+
+    const versionJson = runCli(["--version", "--json"]);
+    const versionPayload = parseSingleJsonLine(versionJson.stdout);
+    assert.equal(versionPayload.success, true);
+    assert.equal(versionPayload.data.name, "@pson5/cli");
+    assert.match(versionPayload.data.version, /^\d+\.\d+\.\d+$/);
+
+    // -v is an alias for --version
+    const versionShort = runCli(["-v"]);
+    assert.equal(versionShort.stdout.trim(), versionText.stdout.trim());
+
+    // --help prints the global usage with all categories
+    const help = runCli(["--help"]);
+    assert.match(help.stdout, /Global flags/);
+    assert.match(help.stdout, /Profiles/);
+    assert.match(help.stdout, /Learning/);
+    assert.match(help.stdout, /Neo4j/);
+    assert.match(help.stdout, /simulate/);
+
+    // -h is an alias for --help
+    const helpShort = runCli(["-h"]);
+    assert.equal(helpShort.stdout, help.stdout);
+
+    // pson help <command> prints per-command help
+    const helpSimulate = runCli(["help", "simulate"]);
+    assert.match(helpSimulate.stdout, /simulate/);
+    assert.match(helpSimulate.stdout, /Synopsis/);
+    assert.match(helpSimulate.stdout, /--context/);
+
+    // <command> --help prints the same per-command help
+    const commandHelp = runCli(["simulate", "--help"]);
+    assert.match(commandHelp.stdout, /Synopsis/);
+    assert.match(commandHelp.stdout, /--context/);
+
+    // Unknown command help exits 1
+    const unknownHelp = runCli(["help", "not-a-real-command"], { expectNonZero: true });
+    assert.match(unknownHelp.stderr, /Unknown command/);
+
+    // Completion scripts
+    const bashCompletion = runCli(["completion", "bash"]);
+    assert.match(bashCompletion.stdout, /_pson_complete/);
+    assert.match(bashCompletion.stdout, /complete -F/);
+    assert.match(bashCompletion.stdout, /init inspect/);
+
+    const zshCompletion = runCli(["completion", "zsh"]);
+    assert.match(zshCompletion.stdout, /#compdef pson/);
+    assert.match(zshCompletion.stdout, /_describe 'pson command'/);
+
+    const fishCompletion = runCli(["completion", "fish"]);
+    assert.match(fishCompletion.stdout, /complete -c pson/);
+    assert.match(fishCompletion.stdout, /__fish_use_subcommand/);
+
+    const unknownShell = runCli(["completion", "weirdshell"], { expectNonZero: true });
+    assert.match(unknownShell.stderr, /Unsupported shell/);
 
     console.log("cli json output passed");
   } finally {
