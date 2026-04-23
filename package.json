@@ -28,7 +28,7 @@
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "check": "npm run check --workspaces --if-present",
-    "ci": "npm run check && npm run build && npm run test:storage && npm run test:postgres-store && npm run test:core-flow && npm run test:provider-retry",
+    "ci": "npm run check && npm run build && npm run test:storage && npm run test:postgres-store && npm run test:core-flow && npm run test:provider-retry && npm run test:cli-json",
     "dev:api": "npm run dev --workspace @pson5/api",
     "dev:cli": "npm run dev --workspace @pson5/cli",
     "dev:docs": "npm run dev --workspace @pson5/docs-site",
@@ -38,6 +38,7 @@
     "test:postgres-store": "node tests/integration/postgres-store-contract.mjs",
     "test:core-flow": "node tests/integration/core-flow.mjs",
     "test:provider-retry": "node tests/integration/provider-retry.mjs",
+    "test:cli-json": "node tests/integration/cli-json-output.mjs",
     "pack:publishable": "npm pack --workspace @pson5/core-types --workspace @pson5/schemas --workspace @pson5/privacy --workspace @pson5/serialization-engine --workspace @pson5/provider-engine --workspace @pson5/modeling-engine --workspace @pson5/state-engine --workspace @pson5/graph-engine --workspace @pson5/neo4j-store --workspace @pson5/simulation-engine --workspace @pson5/acquisition-engine --workspace @pson5/agent-context --workspace @pson5/sdk --workspace @pson5/postgres-store --workspace @pson5/cli"
   },
   "engines": {
