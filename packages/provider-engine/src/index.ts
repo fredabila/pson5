@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AiHeuristicCandidate,
@@ -30,6 +30,178 @@ const ANTHROPIC_API_VERSION = "2023-06-01";
 const DEFAULT_TIMEOUT_MS = 20000;
 const PROVIDER_CONFIG_DIR = "config";
 const PROVIDER_CONFIG_FILE = "provider.json";
+const PROVIDER_CALL_AUDIT_FILE = "provider-call.jsonl";
+const DEFAULT_MAX_PROVIDER_ATTEMPTS = 3;
+const DEFAULT_BACKOFF_BASE_MS = 500;
+const DEFAULT_BACKOFF_CAP_MS = 8000;
+const MAX_RETRY_AFTER_HONOURED_MS = 15000;
+const CHARS_PER_TOKEN_ESTIMATE = 4;
+
+interface ProviderCallAuditRecord {
+  timestamp: string;
+  provider: "openai" | "anthropic";
+  model: string;
+  base_url: string;
+  endpoint: string;
+  schema_name: string;
+  attempts: number;
+  final_status_code: number | null;
+  final_error: string | null;
+  estimated_prompt_tokens: number;
+  estimated_response_tokens: number;
+  duration_ms: number;
+  success: boolean;
+}
+
+interface FetchWithRetryResult {
+  response: Response | null;
+  body_text: string | null;
+  attempts: number;
+  final_status_code: number | null;
+  final_error: string | null;
+  duration_ms: number;
+}
+
+export function estimateTokens(text: string | null | undefined): number {
+  if (!text) {
+    return 0;
+  }
+  return Math.max(1, Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE));
+}
+
+export function shouldRetryStatus(status: number): boolean {
+  return status === 429 || status === 408 || (status >= 500 && status < 600 && status !== 501);
+}
+
+export function parseRetryAfter(header: string | null): number | null {
+  if (!header) {
+    return null;
+  }
+  const seconds = Number(header.trim());
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    return Math.min(seconds * 1000, MAX_RETRY_AFTER_HONOURED_MS);
+  }
+  const dateMs = Date.parse(header.trim());
+  if (Number.isFinite(dateMs)) {
+    const delta = dateMs - Date.now();
+    return delta > 0 ? Math.min(delta, MAX_RETRY_AFTER_HONOURED_MS) : 0;
+  }
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  limits: { maxAttempts?: number; baseDelayMs?: number; maxDelayMs?: number } = {}
+): Promise<FetchWithRetryResult> {
+  const maxAttempts = Math.max(1, limits.maxAttempts ?? DEFAULT_MAX_PROVIDER_ATTEMPTS);
+  const baseDelayMs = limits.baseDelayMs ?? DEFAULT_BACKOFF_BASE_MS;
+  const maxDelayMs = limits.maxDelayMs ?? DEFAULT_BACKOFF_CAP_MS;
+  const startedAt = Date.now();
+
+  let attempt = 0;
+  let lastError: string | null = null;
+  let lastStatus: number | null = null;
+  let lastResponse: Response | null = null;
+
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    try {
+      const response = await fetch(url, init);
+      lastResponse = response;
+      lastStatus = response.status;
+
+      if (response.ok) {
+        const bodyText = await response.text();
+        return {
+          response,
+          body_text: bodyText,
+          attempts: attempt,
+          final_status_code: response.status,
+          final_error: null,
+          duration_ms: Date.now() - startedAt
+        };
+      }
+
+      const errorText = await response.text().catch(() => "");
+      if (!shouldRetryStatus(response.status) || attempt >= maxAttempts) {
+        return {
+          response,
+          body_text: errorText || null,
+          attempts: attempt,
+          final_status_code: response.status,
+          final_error: `HTTP ${response.status}`,
+          duration_ms: Date.now() - startedAt
+        };
+      }
+
+      const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+      const backoffMs = retryAfterMs ?? Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs);
+      await sleep(backoffMs);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+      if (attempt >= maxAttempts) {
+        break;
+      }
+      await sleep(Math.min(baseDelayMs * 2 ** (attempt - 1), maxDelayMs));
+    }
+  }
+
+  return {
+    response: lastResponse,
+    body_text: null,
+    attempts: attempt,
+    final_status_code: lastStatus,
+    final_error: lastError ?? (lastStatus !== null ? `HTTP ${lastStatus}` : "unknown provider failure"),
+    duration_ms: Date.now() - startedAt
+  };
+}
+
+export async function readProviderCallAuditRecords(
+  options?: ProfileStoreOptions
+): Promise<ProviderCallAuditRecord[]> {
+  try {
+    const rootDir = resolveStoreRoot(options);
+    const auditPath = path.join(rootDir, "audit", PROVIDER_CALL_AUDIT_FILE);
+    const raw = await readFile(auditPath, "utf8");
+    const records: ProviderCallAuditRecord[] = [];
+    for (const line of raw.split("\n")) {
+      const trimmed = line.trim();
+      if (trimmed.length === 0) {
+        continue;
+      }
+      try {
+        records.push(JSON.parse(trimmed) as ProviderCallAuditRecord);
+      } catch {
+        // Skip malformed lines.
+      }
+    }
+    return records;
+  } catch {
+    return [];
+  }
+}
+
+async function appendProviderCallAuditLog(
+  record: ProviderCallAuditRecord,
+  options?: ProfileStoreOptions
+): Promise<void> {
+  try {
+    const rootDir = resolveStoreRoot(options);
+    const auditDir = path.join(rootDir, "audit");
+    await mkdir(auditDir, { recursive: true });
+    await writeFile(path.join(auditDir, PROVIDER_CALL_AUDIT_FILE), `${JSON.stringify(record)}\n`, {
+      encoding: "utf8",
+      flag: "a"
+    });
+  } catch {
+    // Audit is best-effort; never block the provider call on logging I/O.
+  }
+}
 
 interface JsonSchemaResponse {
   output_text?: string;
@@ -376,56 +548,106 @@ async function callOpenAiJson(
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), status.timeout_ms ?? DEFAULT_TIMEOUT_MS);
+  const baseUrl = status.base_url ?? DEFAULT_OPENAI_BASE_URL;
+  const endpoint = `${baseUrl}/responses`;
+  const requestBody = JSON.stringify({
+    model: status.model,
+    input: [
+      {
+        role: "developer",
+        content: [
+          {
+            type: "input_text",
+            text: `${instructions} Return valid JSON only.`
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: JSON.stringify(payload)
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: format.name,
+        strict: true,
+        schema: format.schema
+      }
+    }
+  });
+  const estimatedPromptTokens = estimateTokens(requestBody);
 
   try {
-    const response = await fetch(`${status.base_url ?? DEFAULT_OPENAI_BASE_URL}/responses`, {
+    const attempt = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${getProviderApiKey(config)}`
       },
-      body: JSON.stringify({
-        model: status.model,
-        input: [
-          {
-            role: "developer",
-            content: [
-              {
-                type: "input_text",
-                text: `${instructions} Return valid JSON only.`
-              }
-            ]
-          },
-          {
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: JSON.stringify(payload)
-              }
-            ]
-          }
-        ],
-        text: {
-          format: {
-            type: "json_schema",
-            name: format.name,
-            strict: true,
-            schema: format.schema
-          }
-        }
-      }),
+      body: requestBody,
       signal: controller.signal
     });
 
-    const body = (await response.json()) as JsonSchemaResponse;
-    if (!response.ok) {
-      throw new Error(body.error?.message ?? `OpenAI request failed with status ${response.status}.`);
+    const responseText = attempt.body_text ?? "";
+    let parsed: Record<string, unknown> | null = null;
+    let success = false;
+
+    if (attempt.response?.ok && responseText) {
+      try {
+        const body = JSON.parse(responseText) as JsonSchemaResponse;
+        const text = getResponseText(body);
+        parsed = text ? (JSON.parse(text) as Record<string, unknown>) : null;
+        success = parsed !== null;
+      } catch {
+        parsed = null;
+      }
     }
 
-    const text = getResponseText(body);
-    return text ? (JSON.parse(text) as Record<string, unknown>) : null;
-  } catch {
+    await appendProviderCallAuditLog(
+      {
+        timestamp: new Date().toISOString(),
+        provider: "openai",
+        model: status.model,
+        base_url: baseUrl,
+        endpoint,
+        schema_name: format.name,
+        attempts: attempt.attempts,
+        final_status_code: attempt.final_status_code,
+        final_error: success ? null : attempt.final_error ?? "response parse failure",
+        estimated_prompt_tokens: estimatedPromptTokens,
+        estimated_response_tokens: estimateTokens(responseText),
+        duration_ms: attempt.duration_ms,
+        success
+      },
+      options
+    );
+
+    return parsed;
+  } catch (error) {
+    await appendProviderCallAuditLog(
+      {
+        timestamp: new Date().toISOString(),
+        provider: "openai",
+        model: status.model,
+        base_url: baseUrl,
+        endpoint,
+        schema_name: format.name,
+        attempts: 1,
+        final_status_code: null,
+        final_error: error instanceof Error ? error.message : String(error),
+        estimated_prompt_tokens: estimatedPromptTokens,
+        estimated_response_tokens: 0,
+        duration_ms: 0,
+        success: false
+      },
+      options
+    );
     return null;
   } finally {
     clearTimeout(timeout);
@@ -447,43 +669,92 @@ async function callAnthropicJson(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), status.timeout_ms ?? DEFAULT_TIMEOUT_MS);
   const schemaSnippet = JSON.stringify(format.schema);
+  const baseUrl = status.base_url ?? DEFAULT_ANTHROPIC_BASE_URL;
+  const endpoint = `${baseUrl}/messages`;
+  const requestBody = JSON.stringify({
+    model: status.model,
+    max_tokens: 1200,
+    messages: [
+      {
+        role: "user",
+        content: [
+          `${instructions}\nReturn only one valid JSON object matching this schema: ${schemaSnippet}\nPayload:\n${JSON.stringify(payload)}`
+        ]
+      }
+    ]
+  });
+  const estimatedPromptTokens = estimateTokens(requestBody);
 
   try {
-    const response = await fetch(`${status.base_url ?? DEFAULT_ANTHROPIC_BASE_URL}/messages`, {
+    const attempt = await fetchWithRetry(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-api-key": getProviderApiKey(config) ?? "",
         "anthropic-version": ANTHROPIC_API_VERSION
       },
-      body: JSON.stringify({
-        model: status.model,
-        max_tokens: 1200,
-        messages: [
-          {
-            role: "user",
-            content: [
-              `${instructions}\nReturn only one valid JSON object matching this schema: ${schemaSnippet}\nPayload:\n${JSON.stringify(payload)}`
-            ]
-          }
-        ]
-      }),
+      body: requestBody,
       signal: controller.signal
     });
 
-    const body = (await response.json()) as AnthropicMessageResponse;
-    if (!response.ok) {
-      throw new Error(body.error?.message ?? `Anthropic request failed with status ${response.status}.`);
+    const responseText = attempt.body_text ?? "";
+    let parsed: Record<string, unknown> | null = null;
+    let success = false;
+
+    if (attempt.response?.ok && responseText) {
+      try {
+        const body = JSON.parse(responseText) as AnthropicMessageResponse;
+        const text = body.content
+          ?.filter((item) => item.type === "text" && typeof item.text === "string")
+          .map((item) => item.text ?? "")
+          .join("\n")
+          .trim();
+        parsed = text ? extractJsonObject(text) : null;
+        success = parsed !== null;
+      } catch {
+        parsed = null;
+      }
     }
 
-    const text = body.content
-      ?.filter((item) => item.type === "text" && typeof item.text === "string")
-      .map((item) => item.text ?? "")
-      .join("\n")
-      .trim();
+    await appendProviderCallAuditLog(
+      {
+        timestamp: new Date().toISOString(),
+        provider: "anthropic",
+        model: status.model,
+        base_url: baseUrl,
+        endpoint,
+        schema_name: format.name,
+        attempts: attempt.attempts,
+        final_status_code: attempt.final_status_code,
+        final_error: success ? null : attempt.final_error ?? "response parse failure",
+        estimated_prompt_tokens: estimatedPromptTokens,
+        estimated_response_tokens: estimateTokens(responseText),
+        duration_ms: attempt.duration_ms,
+        success
+      },
+      options
+    );
 
-    return text ? extractJsonObject(text) : null;
-  } catch {
+    return parsed;
+  } catch (error) {
+    await appendProviderCallAuditLog(
+      {
+        timestamp: new Date().toISOString(),
+        provider: "anthropic",
+        model: status.model,
+        base_url: baseUrl,
+        endpoint,
+        schema_name: format.name,
+        attempts: 1,
+        final_status_code: null,
+        final_error: error instanceof Error ? error.message : String(error),
+        estimated_prompt_tokens: estimatedPromptTokens,
+        estimated_response_tokens: 0,
+        duration_ms: 0,
+        success: false
+      },
+      options
+    );
     return null;
   } finally {
     clearTimeout(timeout);
