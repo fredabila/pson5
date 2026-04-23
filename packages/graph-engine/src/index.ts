@@ -174,31 +174,261 @@ export interface GraphQuery {
   edge_type?: string;
 }
 
-export function explainPredictionSupport(profile: PsonProfile, prediction: string): string[] {
-  const edges = profile.knowledge_graph.edges;
+export interface GraphPath {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface NeighborhoodResult {
+  center: GraphNode | null;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface NeighborhoodOptions {
+  depth?: number;
+  direction?: "in" | "out" | "both";
+  edge_types?: string[];
+}
+
+export interface PredictionExplanation {
+  prediction: string;
+  target_node_ids: string[];
+  paths: GraphPath[];
+  support: string[];
+  missing_targets: string[];
+}
+
+const DEFAULT_NEIGHBORHOOD_DEPTH = 2;
+const DEFAULT_EXPLAIN_MAX_DEPTH = 4;
+
+const PREDICTION_TARGETS: Record<string, string[]> = {
+  delayed_start: [
+    "heuristic:deadline_driven_activation",
+    "heuristic:last_minute_study_pattern"
+  ],
+  compressed_preparation: [
+    "heuristic:last_minute_study_pattern",
+    "heuristic:deadline_driven_activation"
+  ],
+  structured_execution: ["heuristic:structured_workflow_preference"],
+  immediate_start: ["trait:core:task_start_pattern"]
+};
+
+function buildNodeIndex(profile: PsonProfile): Map<string, GraphNode> {
+  const index = new Map<string, GraphNode>();
+  for (const node of profile.knowledge_graph.nodes) {
+    index.set(node.id, node);
+  }
+  return index;
+}
+
+function buildAdjacency(
+  profile: PsonProfile
+): { outgoing: Map<string, GraphEdge[]>; incoming: Map<string, GraphEdge[]> } {
+  const outgoing = new Map<string, GraphEdge[]>();
+  const incoming = new Map<string, GraphEdge[]>();
+
+  for (const edge of profile.knowledge_graph.edges) {
+    const fromList = outgoing.get(edge.from) ?? [];
+    fromList.push(edge);
+    outgoing.set(edge.from, fromList);
+
+    const toList = incoming.get(edge.to) ?? [];
+    toList.push(edge);
+    incoming.set(edge.to, toList);
+  }
+
+  return { outgoing, incoming };
+}
+
+export function getNodeNeighborhood(
+  profile: PsonProfile,
+  nodeId: string,
+  options: NeighborhoodOptions = {}
+): NeighborhoodResult {
+  const depth = options.depth ?? DEFAULT_NEIGHBORHOOD_DEPTH;
+  const direction = options.direction ?? "both";
+  const edgeTypes = options.edge_types && options.edge_types.length > 0 ? new Set(options.edge_types) : null;
+
+  const nodeIndex = buildNodeIndex(profile);
+  const adjacency = buildAdjacency(profile);
+
+  const center = nodeIndex.get(nodeId) ?? null;
+  if (!center || depth <= 0) {
+    return { center, nodes: center ? [center] : [], edges: [] };
+  }
+
+  const seenNodes = new Set<string>([nodeId]);
+  const seenEdges = new Set<string>();
+  const collectedEdges: GraphEdge[] = [];
+  let frontier: string[] = [nodeId];
+
+  for (let hop = 0; hop < depth && frontier.length > 0; hop += 1) {
+    const nextFrontier: string[] = [];
+
+    for (const current of frontier) {
+      const candidates: GraphEdge[] = [];
+      if (direction !== "in") {
+        candidates.push(...(adjacency.outgoing.get(current) ?? []));
+      }
+      if (direction !== "out") {
+        candidates.push(...(adjacency.incoming.get(current) ?? []));
+      }
+
+      for (const edge of candidates) {
+        if (edgeTypes && !edgeTypes.has(edge.type)) {
+          continue;
+        }
+        if (seenEdges.has(edge.id)) {
+          continue;
+        }
+        seenEdges.add(edge.id);
+        collectedEdges.push(edge);
+
+        const neighbourId = edge.from === current ? edge.to : edge.from;
+        if (!seenNodes.has(neighbourId) && nodeIndex.has(neighbourId)) {
+          seenNodes.add(neighbourId);
+          nextFrontier.push(neighbourId);
+        }
+      }
+    }
+
+    frontier = nextFrontier;
+  }
+
+  const nodes: GraphNode[] = [];
+  for (const id of seenNodes) {
+    const found = nodeIndex.get(id);
+    if (found) {
+      nodes.push(found);
+    }
+  }
+
+  return { center, nodes, edges: collectedEdges };
+}
+
+function walkSupportPaths(
+  profile: PsonProfile,
+  targetId: string,
+  maxDepth: number
+): GraphPath[] {
+  const nodeIndex = buildNodeIndex(profile);
+  const adjacency = buildAdjacency(profile);
+  if (!nodeIndex.has(targetId)) {
+    return [];
+  }
+
+  const paths: GraphPath[] = [];
+
+  const recordPath = (edgesSoFar: GraphEdge[]): void => {
+    if (edgesSoFar.length === 0) {
+      return;
+    }
+    // edgesSoFar was accumulated walking target -> source. Reverse to source -> target order.
+    const orderedEdges = [...edgesSoFar].reverse();
+    const nodeIds = [orderedEdges[0].from, ...orderedEdges.map((edge) => edge.to)];
+    const nodes = nodeIds
+      .map((id) => nodeIndex.get(id))
+      .filter((node): node is GraphNode => Boolean(node));
+    paths.push({ nodes, edges: orderedEdges });
+  };
+
+  const walk = (
+    currentId: string,
+    visitedNodes: Set<string>,
+    edgesSoFar: GraphEdge[],
+    depth: number
+  ): void => {
+    const incoming = adjacency.incoming.get(currentId) ?? [];
+    const usableIncoming = incoming.filter((edge) => !visitedNodes.has(edge.from));
+
+    if (depth === 0 || usableIncoming.length === 0) {
+      recordPath(edgesSoFar);
+      return;
+    }
+
+    for (const edge of usableIncoming) {
+      const nextVisited = new Set(visitedNodes);
+      nextVisited.add(edge.from);
+      walk(edge.from, nextVisited, [...edgesSoFar, edge], depth - 1);
+    }
+  };
+
+  walk(targetId, new Set<string>([targetId]), [], maxDepth);
+  return paths;
+}
+
+function formatPath(path: GraphPath, targetLabel: string): string {
+  if (path.nodes.length === 0) {
+    return "";
+  }
+
+  const labels = path.nodes.map((node) => node.label || node.id);
+  const edgeTypes = path.edges.map((edge) => edge.type);
+  const arrowed = labels.reduce<string[]>((acc, label, index) => {
+    if (index === 0) {
+      return [label];
+    }
+    acc.push(`-[${edgeTypes[index - 1]}]->`);
+    acc.push(label);
+    return acc;
+  }, []);
+
+  return `Supports ${targetLabel}: ${arrowed.join(" ")}`;
+}
+
+export function explainPrediction(
+  profile: PsonProfile,
+  prediction: string,
+  options: { max_depth?: number } = {}
+): PredictionExplanation {
+  const maxDepth = options.max_depth ?? DEFAULT_EXPLAIN_MAX_DEPTH;
+  const targetIds = PREDICTION_TARGETS[prediction] ?? [];
+  const nodeIndex = buildNodeIndex(profile);
+
+  const reachableTargets: string[] = [];
+  const missingTargets: string[] = [];
+  for (const id of targetIds) {
+    if (nodeIndex.has(id)) {
+      reachableTargets.push(id);
+    } else {
+      missingTargets.push(id);
+    }
+  }
+
+  const paths: GraphPath[] = [];
+  for (const targetId of reachableTargets) {
+    paths.push(...walkSupportPaths(profile, targetId, maxDepth));
+  }
+
   const support: string[] = [];
-
-  if (prediction === "delayed_start") {
-    if (edges.some((edge) => edge.id === "edge:task_start_to_deadline_activation")) {
-      support.push("Knowledge graph links task_start_pattern to deadline_driven_activation.");
+  for (const targetId of reachableTargets) {
+    const label = nodeIndex.get(targetId)?.label ?? targetId;
+    const targetPaths = paths.filter((path) => path.nodes.at(-1)?.id === targetId);
+    if (targetPaths.length === 0) {
+      support.push(`Target ${label} is present in the graph but no supporting trait paths were found.`);
+      continue;
     }
-    if (edges.some((edge) => edge.id === "edge:deadline_effect_to_deadline_activation")) {
-      support.push("Knowledge graph links deadline_effect to deadline_driven_activation.");
+    for (const path of targetPaths) {
+      support.push(formatPath(path, label));
     }
   }
 
-  if (prediction === "structured_execution" && edges.some((edge) => edge.id === "edge:planning_style_to_structured_workflow")) {
-    support.push("Knowledge graph links planning_style to structured_workflow_preference.");
-  }
+  return {
+    prediction,
+    target_node_ids: targetIds,
+    paths,
+    support,
+    missing_targets: missingTargets
+  };
+}
 
-  if (prediction === "delayed_start" && edges.some((edge) => edge.id === "edge:study_start_to_last_minute_study")) {
-    support.push("Knowledge graph links study_start_pattern to last_minute_study_pattern.");
-  }
-
-  return support;
+export function explainPredictionSupport(profile: PsonProfile, prediction: string): string[] {
+  return explainPrediction(profile, prediction).support;
 }
 
 export const graphEngineStatus = {
   phase: "implemented",
-  next_step: "Add neighborhood queries, richer node typing, and graph-specific explainability endpoints."
+  next_step: "Expand prediction-to-node mapping and add graph-backed similarity search."
 } as const;

@@ -8,6 +8,11 @@ import {
 } from "../../packages/acquisition-engine/dist/acquisition-engine/src/index.js";
 import { buildAgentContext } from "../../packages/agent-context/dist/agent-context/src/index.js";
 import {
+  explainPrediction,
+  explainPredictionSupport,
+  getNodeNeighborhood
+} from "../../packages/graph-engine/dist/graph-engine/src/index.js";
+import {
   exportProfile,
   initProfile,
   loadProfile,
@@ -24,7 +29,9 @@ const CORE_ANSWERS = [
   { question_id: "core_learning_mode", value: "doing" },
   { question_id: "core_explanation_preference", value: "summary" },
   { question_id: "core_task_start_pattern", value: "delay_start" },
-  { question_id: "core_deadline_effect", value: "causes_stress" }
+  // "mixed" exercises both the deadline_driven_activation heuristic
+  // (needs helps_focus | mixed) AND the stressed state branch.
+  { question_id: "core_deadline_effect", value: "mixed" }
 ];
 
 function clone(value) {
@@ -68,7 +75,7 @@ async function coreFlow(storeRoot) {
   );
 
   const observedCore = learnResult.profile.layers.observed.core;
-  assert.equal(observedCore.facts.deadline_effect, "causes_stress");
+  assert.equal(observedCore.facts.deadline_effect, "mixed");
   assert.equal(observedCore.facts.task_start_pattern, "delay_start");
 
   const inferredCore = learnResult.profile.layers.inferred.core;
@@ -165,7 +172,7 @@ async function coreFlow(storeRoot) {
   assert.ok(Array.isArray(baseSnapshot.evaluated_triggers));
 
   const stressed = baseSnapshot.active_states.find((entry) => entry.state_id === "stressed");
-  assert.ok(stressed, "stressed state expected from causes_stress signal");
+  assert.ok(stressed, "stressed state expected from deadline_effect=mixed signal");
   assert.ok(
     stressed.matched_triggers.includes("deadline_pressure"),
     "stressed state triggers must match from observed facts"
@@ -196,7 +203,38 @@ async function coreFlow(storeRoot) {
     "applyConfidenceDecay reduces score for aged evidence"
   );
 
-  // 10) round-trip: save + load keeps shape
+  // 10) graph engine — neighborhood + explain paths
+  const neighborhood = getNodeNeighborhood(learnResult.profile, "heuristic:deadline_driven_activation", {
+    depth: 2,
+    direction: "both"
+  });
+  assert.ok(neighborhood.center, "neighborhood center node resolved");
+  assert.ok(neighborhood.nodes.length >= 2, "neighborhood includes at least the center and one neighbour");
+
+  const explanation = explainPrediction(learnResult.profile, "delayed_start");
+  assert.equal(explanation.prediction, "delayed_start");
+  assert.ok(explanation.target_node_ids.length >= 1, "delayed_start has at least one target");
+  assert.ok(
+    explanation.paths.length >= 1,
+    "delayed_start has at least one supporting path in the knowledge graph"
+  );
+  const firstPath = explanation.paths[0];
+  assert.ok(firstPath.nodes.length >= 2, "support path spans at least a trait and a target");
+  assert.ok(firstPath.edges.length >= 1, "support path includes edges");
+
+  const legacy = explainPredictionSupport(learnResult.profile, "delayed_start");
+  assert.ok(Array.isArray(legacy) && legacy.length >= 1, "legacy explainPredictionSupport still returns strings");
+  assert.ok(
+    legacy[0].includes("Supports"),
+    "legacy explainPredictionSupport now surfaces path-formatted strings"
+  );
+
+  const unknown = explainPrediction(learnResult.profile, "no_such_prediction");
+  assert.deepEqual(unknown.target_node_ids, []);
+  assert.deepEqual(unknown.paths, []);
+  assert.deepEqual(unknown.support, []);
+
+  // 11) round-trip: save + load keeps shape
   const reloaded = await loadProfile(learnResult.profile.profile_id, storeOptions);
   assert.equal(reloaded.profile_id, learnResult.profile.profile_id);
   assert.equal(reloaded.metadata.revision, learnResult.profile.metadata.revision);
