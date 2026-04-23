@@ -3,201 +3,663 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PSON5</title>
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#09090b" />
+    <title>PSON5 — Personalization your agents can actually reason about.</title>
+    <meta
+      name="description"
+      content="PSON5 is an open standard and infrastructure for cognitive user profiles. Structured acquisition, modeling, simulation, and agent-safe context — with strict separation between what the user said, what the model inferred, and what the simulator predicts."
+    />
+    <meta property="og:title" content="PSON5 — Personalization your agents can actually reason about." />
+    <meta
+      property="og:description"
+      content="An open standard and infrastructure for structured, explainable, agent-safe user profiles."
+    />
+    <meta property="og:type" content="website" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..600,0..100&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
     <link rel="stylesheet" href="/landing.css" />
   </head>
   <body>
-    <div class="site-shell">
-      <header class="site-nav">
-        <a class="wordmark" href="/">PSON5</a>
-        <nav class="nav-links">
-          <a href="#platform">Platform</a>
-          <a href="#workflows">Workflows</a>
-          <a href="#architecture">Architecture</a>
-          <a href="/access" class="nav-cta">Open Dashboard</a>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell nav">
+        <a class="wordmark" href="/">
+          <span class="wordmark__dot" aria-hidden="true"></span>
+          <span>PSON<span class="italic-mark">5</span></span>
+          <span class="wordmark__suffix">v0.1.0</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="#standard">Standard</a>
+          <a href="#pipeline">Pipeline</a>
+          <a href="#surfaces">Surfaces</a>
+          <a href="#agents">Agents</a>
+          <a class="nav-cta" href="/access">
+            <span>Open Dashboard</span>
+            <svg class="nav-cta__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2 6h8m0 0L6 2m4 4L6 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
         </nav>
-      </header>
+      </div>
+    </header>
 
-      <main class="landing-shell">
-        <section class="hero-grid">
-          <div class="hero-copy">
-            <p class="eyebrow">Cognitive Personalization Infrastructure</p>
-            <h1>Build agents that learn people with structure, context, and restraint.</h1>
-            <p class="lede">
-              PSON5 gives applications a portable personalization layer: structured user data, adaptive acquisition,
-              agent-safe context projection, simulation, privacy controls, and graph-backed reasoning.
-            </p>
-            <div class="hero-actions">
-              <a class="primary-cta" href="/access">Enter Product Dashboard</a>
-              <a class="secondary-cta" href="#platform">See The Platform</a>
-            </div>
-            <div class="hero-proof">
-              <div>
-                <strong>.pson</strong>
-                <span>portable profile standard</span>
-              </div>
-              <div>
-                <strong>SDK + API + CLI</strong>
-                <span>one engine, multiple surfaces</span>
-              </div>
-              <div>
-                <strong>Rules + LLMs</strong>
-                <span>adaptive but auditable cognition</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="hero-visual">
-            <div class="signal-panel">
-              <div class="signal-topline">
-                <span>Live profile intelligence</span>
-                <strong>agent-context first</strong>
-              </div>
-              <div class="preview-console">
-                <div class="preview-header">
-                  <span>Observed</span>
-                  <span>Inferred</span>
-                  <span>Projected</span>
-                </div>
-                <div class="preview-grid">
-                  <article>
-                    <h3>Observed facts</h3>
-                    <ul>
-                      <li>learning_mode = reading</li>
-                      <li>task_start_pattern = delay_start</li>
-                      <li>deadline_effect = helps_focus</li>
-                    </ul>
-                  </article>
-                  <article>
-                    <h3>Inferred model</h3>
-                    <ul>
-                      <li>problem_solving_style = plan_first</li>
-                      <li>heuristic = deadline_driven_activation</li>
-                      <li>state = motivated</li>
-                    </ul>
-                  </article>
-                  <article>
-                    <h3>Agent context</h3>
-                    <ul>
-                      <li>relevant signals only</li>
-                      <li>confidence-scored output</li>
-                      <li>privacy-aware projection</li>
-                    </ul>
-                  </article>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="metric-band">
-          <article class="metric-card">
-            <span>Acquisition</span>
-            <strong>Adaptive question flow</strong>
-            <p>LLM-routed selection over approved targets with contradiction, fatigue, and confidence-gap signals.</p>
-          </article>
-          <article class="metric-card">
-            <span>Projection</span>
-            <strong>Agent-standardized context</strong>
-            <p>Agents read a filtered layer, not the entire raw user profile.</p>
-          </article>
-          <article class="metric-card">
-            <span>Deployment</span>
-            <strong>Local to cloud path</strong>
-            <p>File, memory, and repository-backed storage with API, SDK, CLI, and web surfaces.</p>
-          </article>
-        </section>
-
-        <section class="section-block" id="platform">
-          <div class="section-heading">
-            <p class="eyebrow">Platform</p>
-            <h2>A full personalization stack, not a thin preference store.</h2>
-          </div>
-          <div class="feature-grid">
-            <article class="feature-card">
-              <h3>Acquisition engine</h3>
-              <p>Developer-configured domains, shared question registry, adaptive selection, natural-language answers.</p>
-            </article>
-            <article class="feature-card">
-              <h3>Modeling and simulation</h3>
-              <p>Observed facts, inferred traits, heuristics, state shifts, simulations, and graph-supported explanation.</p>
-            </article>
-            <article class="feature-card">
-              <h3>Privacy and controls</h3>
-              <p>Consent scopes, safe export, provider policy gates, access audits, tenant boundaries, signed identity.</p>
-            </article>
-            <article class="feature-card">
-              <h3>Developer surfaces</h3>
-              <p>CLI, SDK, API, dashboard UI, storage adapters, provider layer, and Neo4j sync.</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="section-block alt" id="workflows">
-          <div class="section-heading">
-            <p class="eyebrow">Workflows</p>
-            <h2>Use PSON5 as the cognition layer behind agents, products, and internal tools.</h2>
-          </div>
-          <div class="workflow-grid">
-            <article class="workflow-card">
-              <strong>1. Learn</strong>
-              <p>Collect user signals through adaptive prompts and product interactions.</p>
-            </article>
-            <article class="workflow-card">
-              <strong>2. Model</strong>
-              <p>Derive stable traits, heuristics, states, and a knowledge graph with evidence and confidence.</p>
-            </article>
-            <article class="workflow-card">
-              <strong>3. Project</strong>
-              <p>Give agents only relevant personalization context through a standardized agent view.</p>
-            </article>
-            <article class="workflow-card">
-              <strong>4. Simulate</strong>
-              <p>Predict likely user responses, actions, and friction points before the agent acts.</p>
-            </article>
-          </div>
-        </section>
-
-        <section class="section-block" id="architecture">
-          <div class="section-heading">
-            <p class="eyebrow">Architecture</p>
-            <h2>User -> .pson profile -> agent context -> personalized behavior.</h2>
-          </div>
-          <div class="architecture-strip">
-            <div class="arch-node">
-              <strong>User data</strong>
-              <span>identity, cognitive, behavioral, contextual, domain-specific</span>
-            </div>
-            <div class="arch-arrow">-></div>
-            <div class="arch-node">
-              <strong>PSON profile</strong>
-              <span>observed, inferred, simulated, state, graph, privacy, metadata</span>
-            </div>
-            <div class="arch-arrow">-></div>
-            <div class="arch-node">
-              <strong>Agent context</strong>
-              <span>relevance-scored, constrained, confidence-aware projection</span>
-            </div>
-            <div class="arch-arrow">-></div>
-            <div class="arch-node">
-              <strong>Output</strong>
-              <span>personalized agent behavior, product logic, dashboards, exports</span>
-            </div>
-          </div>
-        </section>
-
-        <section class="cta-panel">
+    <main id="main">
+      <!-- ================================== HERO ================================== -->
+      <section class="shell hero">
+        <div class="hero__grid">
           <div>
-            <p class="eyebrow">Product Surface</p>
-            <h2>Use the dashboard to inspect the whole system end to end.</h2>
-            <p>The dashboard exposes learning, simulation, provider status, exports, graph sync, and profile inspection.</p>
+            <div class="hero__eyebrow-row">
+              <span class="eyebrow eyebrow--accent">Personalization Infrastructure</span>
+              <span class="hero__version">0.1.0 · MIT · Open source</span>
+            </div>
+            <h1 class="hero__title">
+              Personalization your agents can <em>actually</em> reason about.
+            </h1>
+            <p class="hero__lede">
+              PSON5 is an open standard and infrastructure for cognitive user profiles.
+              It keeps what the user said, what the model inferred, and what the simulator
+              predicts as three separate things — so agents can plan, explain, and fail
+              gracefully on top of them.
+            </p>
+            <div class="hero__ctas">
+              <a class="btn btn--primary" href="/access">
+                <span>Open Dashboard</span>
+                <svg class="btn--arrow" width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M2 6h8m0 0L6 2m4 4L6 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </a>
+              <a class="btn btn--ghost" href="#standard">
+                <span>Read the standard</span>
+                <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                  <path d="M3 9L9 3m0 0H4m5 0v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+              </a>
+            </div>
+            <dl class="hero__meta">
+              <div class="hero__meta-item">
+                <strong>.pson 5.0</strong>
+                <span>Portable profile</span>
+              </div>
+              <div class="hero__meta-item">
+                <strong>14 packages</strong>
+                <span>One engine, many surfaces</span>
+              </div>
+              <div class="hero__meta-item">
+                <strong>4 transports</strong>
+                <span>SDK · API · CLI · MCP</span>
+              </div>
+            </dl>
           </div>
-          <div class="hero-actions">
-            <a class="primary-cta" href="/access">Open Dashboard</a>
-            <a class="secondary-cta" href="/console">Go Directly To Console</a>
+
+          <div class="hero__visual reveal" aria-hidden="true">
+            <!-- Observed layer -->
+            <article class="peek peek--observed">
+              <header class="peek__header">
+                <span class="peek__label"><span class="peek__dot"></span>Observed</span>
+                <span class="peek__version">layers.observed.core</span>
+              </header>
+              <div class="peek__body">
+                <div class="peek__row">
+                  <span class="peek__key">learning_mode</span>
+                  <span class="peek__value">"doing"</span>
+                  <span class="peek__conf">direct</span>
+                </div>
+                <div class="peek__row">
+                  <span class="peek__key">deadline_effect</span>
+                  <span class="peek__value">"mixed"</span>
+                  <span class="peek__conf">direct</span>
+                </div>
+                <div class="peek__row">
+                  <span class="peek__key">planning_style</span>
+                  <span class="peek__value">"structured"</span>
+                  <span class="peek__conf">direct</span>
+                </div>
+              </div>
+            </article>
+
+            <!-- Inferred layer -->
+            <article class="peek peek--inferred">
+              <header class="peek__header">
+                <span class="peek__label"><span class="peek__dot"></span>Inferred</span>
+                <span class="peek__version">layers.inferred.heuristics</span>
+              </header>
+              <div class="peek__body">
+                <div class="peek__row">
+                  <span class="peek__key">deadline_driven_activation</span>
+                  <span class="peek__value">true</span>
+                  <span class="peek__conf">
+                    <span class="peek__conf-bar" style="--w: 78%"></span>0.78
+                  </span>
+                </div>
+                <div class="peek__row">
+                  <span class="peek__key">structured_workflow_pref</span>
+                  <span class="peek__value">true</span>
+                  <span class="peek__conf">
+                    <span class="peek__conf-bar" style="--w: 74%"></span>0.74
+                  </span>
+                </div>
+              </div>
+            </article>
+
+            <!-- Simulated layer -->
+            <article class="peek peek--simulated">
+              <header class="peek__header">
+                <span class="peek__label"><span class="peek__dot"></span>Simulated</span>
+                <span class="peek__version">scenarios.delayed_start</span>
+              </header>
+              <div class="peek__body">
+                <div class="peek__row">
+                  <span class="peek__key">prediction</span>
+                  <span class="peek__value">"delayed_start"</span>
+                  <span class="peek__conf">
+                    <span class="peek__conf-bar" style="--w: 72%"></span>0.72
+                  </span>
+                </div>
+                <div class="peek__row">
+                  <span class="peek__key">reasoning</span>
+                  <span class="peek__value">path via graph</span>
+                  <span class="peek__conf">3 edges</span>
+                </div>
+              </div>
+            </article>
           </div>
-        </section>
-      </main>
-    </div>
+        </div>
+      </section>
+
+      <!-- ================================== MARQUEE ================================== -->
+      <section class="marquee" aria-label="What PSON5 understands">
+        <div class="marquee__track">
+          <span class="marquee__item">observed.facts</span>
+          <span class="marquee__item">inferred.traits</span>
+          <span class="marquee__item">simulated.scenarios</span>
+          <span class="marquee__item">state.focused</span>
+          <span class="marquee__item">graph.causes</span>
+          <span class="marquee__item">consent.scopes</span>
+          <span class="marquee__item">confidence.half_life</span>
+          <span class="marquee__item">trigger.deadline_pressure</span>
+          <span class="marquee__item">agent_context v1.0</span>
+          <span class="marquee__item">redaction.restricted_field</span>
+          <span class="marquee__item">decay.time_decay</span>
+          <span class="marquee__item">privacy.local_only</span>
+          <!-- duplicate for seamless loop -->
+          <span class="marquee__item">observed.facts</span>
+          <span class="marquee__item">inferred.traits</span>
+          <span class="marquee__item">simulated.scenarios</span>
+          <span class="marquee__item">state.focused</span>
+          <span class="marquee__item">graph.causes</span>
+          <span class="marquee__item">consent.scopes</span>
+          <span class="marquee__item">confidence.half_life</span>
+          <span class="marquee__item">trigger.deadline_pressure</span>
+          <span class="marquee__item">agent_context v1.0</span>
+          <span class="marquee__item">redaction.restricted_field</span>
+          <span class="marquee__item">decay.time_decay</span>
+          <span class="marquee__item">privacy.local_only</span>
+        </div>
+      </section>
+
+      <!-- ================================== STANDARD ================================== -->
+      <section class="shell section" id="standard">
+        <div class="standard">
+          <div class="standard__copy reveal">
+            <span class="eyebrow">01 · The Standard</span>
+            <h2>A file format that keeps <em class="italic-mark">fact</em>, <em class="italic-mark">inference</em>, and <em class="italic-mark">prediction</em> separate.</h2>
+            <p>
+              Most agent memory collapses three very different claims into one blob of text.
+              <strong style="color: var(--ink-0)">.pson</strong> doesn't. Direct user facts, model-derived traits, and
+              scenario-specific predictions live in distinct layers — each with confidence,
+              evidence, and decay policy attached.
+            </p>
+
+            <div class="standard__chips">
+              <div class="chip chip--observed">
+                <span class="chip__marker" aria-hidden="true"></span>
+                <div class="chip__body">
+                  <strong>Observed</strong>
+                  <span>Direct user statements and normalized answers.</span>
+                </div>
+                <span class="chip__badge">confidence 1.0</span>
+              </div>
+              <div class="chip chip--inferred">
+                <span class="chip__marker" aria-hidden="true"></span>
+                <div class="chip__body">
+                  <strong>Inferred</strong>
+                  <span>Traits, heuristics, and states derived from evidence.</span>
+                </div>
+                <span class="chip__badge">half-life 14d</span>
+              </div>
+              <div class="chip chip--simulated">
+                <span class="chip__marker" aria-hidden="true"></span>
+                <div class="chip__body">
+                  <strong>Simulated</strong>
+                  <span>Scenario predictions, not durable facts.</span>
+                </div>
+                <span class="chip__badge">reasoning trace</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pson-file reveal">
+            <div class="pson-file__chrome">
+              <span><span class="pson-file__dots"><span></span><span></span><span></span></span><strong>profile.pson</strong></span>
+              <span>5.0</span>
+            </div>
+            <pre class="pson-file__body"><code><span class="b">{</span>
+  <span class="k">"pson_version"</span>: <span class="s">"5.0"</span>,
+  <span class="k">"profile_id"</span>:  <span class="s">"pson_1776913414584"</span>,
+  <span class="k">"consent"</span>: <span class="b">{</span> <span class="k">"granted"</span>: <span class="n">true</span>, <span class="k">"scopes"</span>: <span class="b">[</span><span class="s">"ai:use"</span><span class="b">]</span> <span class="b">}</span>,
+
+  <span class="c">// what the user said</span>
+  <span class="observed">"layers.observed"</span>: <span class="b">{</span>
+    <span class="k">"core.facts.deadline_effect"</span>: <span class="s">"mixed"</span>,
+    <span class="k">"core.facts.planning_style"</span>:  <span class="s">"structured"</span>
+  <span class="b">}</span>,
+
+  <span class="c">// what the model inferred</span>
+  <span class="inferred">"layers.inferred"</span>: <span class="b">{</span>
+    <span class="k">"heuristic"</span>: <span class="s">"deadline_driven_activation"</span>,
+    <span class="k">"confidence"</span>: <span class="n">0.78</span>,
+    <span class="k">"decay_policy"</span>: <span class="b">{</span> <span class="k">"half_life_days"</span>: <span class="n">14</span> <span class="b">}</span>
+  <span class="b">}</span>,
+
+  <span class="c">// what the simulator predicts</span>
+  <span class="simulated">"layers.simulated"</span>: <span class="b">{</span>
+    <span class="k">"prediction"</span>: <span class="s">"delayed_start"</span>,
+    <span class="k">"reasoning"</span>: <span class="b">[</span><span class="s">"path via graph"</span><span class="b">]</span>,
+    <span class="k">"caveats"</span>: <span class="b">[</span><span class="s">"sparse scenario data"</span><span class="b">]</span>
+  <span class="b">}</span>
+<span class="b">}</span></code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================== PIPELINE ================================== -->
+      <section class="shell section" id="pipeline">
+        <header class="section-head reveal">
+          <div>
+            <span class="eyebrow">02 · The Pipeline</span>
+            <h2 class="section-head__title">From raw signal to agent-safe context.</h2>
+          </div>
+          <p class="section-head__lede">
+            PSON5 is not a single box. It is a pipeline: six specialized engines that each own
+            one concern, communicate through the <code class="mono">.pson</code> contract, and compose cleanly behind
+            a unified SDK, API, CLI, and MCP server.
+          </p>
+        </header>
+
+        <div class="pipeline reveal">
+          <article class="pipeline__step">
+            <span class="pipeline__index">01</span>
+            <h3 class="pipeline__name">Acquisition</h3>
+            <p class="pipeline__desc">Adaptive question selection with confidence-gap scoring, contradiction flags, and fatigue detection.</p>
+            <span class="pipeline__tag">@pson5/<em>acquisition</em></span>
+          </article>
+          <article class="pipeline__step">
+            <span class="pipeline__index">02</span>
+            <h3 class="pipeline__name">Modeling</h3>
+            <p class="pipeline__desc">Rule-based and provider-backed derivation of traits and heuristics with evidence and decay.</p>
+            <span class="pipeline__tag">@pson5/<em>modeling</em></span>
+          </article>
+          <article class="pipeline__step">
+            <span class="pipeline__index">03</span>
+            <h3 class="pipeline__name">State</h3>
+            <p class="pipeline__desc">Transient conditions with time-decay and runtime trigger evaluation against observed facts.</p>
+            <span class="pipeline__tag">@pson5/<em>state</em></span>
+          </article>
+          <article class="pipeline__step">
+            <span class="pipeline__index">04</span>
+            <h3 class="pipeline__name">Graph</h3>
+            <p class="pipeline__desc">Knowledge graph with k-hop traversal and path-based prediction explanations.</p>
+            <span class="pipeline__tag">@pson5/<em>graph</em></span>
+          </article>
+          <article class="pipeline__step">
+            <span class="pipeline__index">05</span>
+            <h3 class="pipeline__name">Simulation</h3>
+            <p class="pipeline__desc">Scenario-specific predictions with reasoning, caveats, and alternatives — never promoted to fact.</p>
+            <span class="pipeline__tag">@pson5/<em>simulation</em></span>
+          </article>
+          <article class="pipeline__step">
+            <span class="pipeline__index">06</span>
+            <h3 class="pipeline__name">Projection</h3>
+            <p class="pipeline__desc">Agent-safe context with explicit redaction notes, consent gates, and relevance ranking.</p>
+            <span class="pipeline__tag">@pson5/<em>agent-context</em></span>
+          </article>
+        </div>
+      </section>
+
+      <!-- ================================== LAYERS ================================== -->
+      <section class="shell section">
+        <header class="section-head reveal">
+          <div>
+            <span class="eyebrow">03 · The Three Layers</span>
+            <h2 class="section-head__title">One model. Three epistemic states.</h2>
+          </div>
+          <p class="section-head__lede">
+            Collapsing fact, inference, and prediction into one blob is how agent memory
+            goes wrong. PSON5 keeps them visibly separate, so an LLM can treat each with the
+            weight it deserves.
+          </p>
+        </header>
+
+        <div class="layers">
+          <article class="layer-card layer-card--observed reveal">
+            <span class="layer-card__index">01 · Observed</span>
+            <h3 class="layer-card__name">What the user said.</h3>
+            <p class="layer-card__desc">
+              Direct statements and normalized answers. High certainty. The anchor the rest
+              of the system is allowed to reason from.
+            </p>
+            <div class="layer-card__sample">
+              <strong class="accent-text">layers.observed.core.facts</strong><br/>
+              deadline_effect = "mixed"<br/>
+              planning_style  = "structured"<br/>
+              learning_mode   = "doing"
+            </div>
+          </article>
+          <article class="layer-card layer-card--inferred reveal">
+            <span class="layer-card__index">02 · Inferred</span>
+            <h3 class="layer-card__name">What the model thinks.</h3>
+            <p class="layer-card__desc">
+              Traits, heuristics, and states derived from evidence. Always carries confidence,
+              evidence references, and a decay policy that ages it out over time.
+            </p>
+            <div class="layer-card__sample">
+              <strong class="accent-text">layers.inferred.heuristics</strong><br/>
+              deadline_driven_activation<br/>
+              &nbsp;&nbsp;confidence: 0.78<br/>
+              &nbsp;&nbsp;half_life:  14d
+            </div>
+          </article>
+          <article class="layer-card layer-card--simulated reveal">
+            <span class="layer-card__index">03 · Simulated</span>
+            <h3 class="layer-card__name">What the engine predicts.</h3>
+            <p class="layer-card__desc">
+              Scenario-specific estimates with reasoning trace and caveats. Never written
+              back as observed fact. A hypothesis, not a record.
+            </p>
+            <div class="layer-card__sample">
+              <strong class="accent-text">simulation.scenarios</strong><br/>
+              prediction: "delayed_start"<br/>
+              confidence: 0.72<br/>
+              reasoning:  [path via graph]
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ================================== SURFACES ================================== -->
+      <section class="shell section" id="surfaces">
+        <div class="surfaces">
+          <div class="surfaces__copy reveal">
+            <span class="eyebrow">04 · Surfaces</span>
+            <h2>Drop PSON5 into any runtime your agent already lives in.</h2>
+            <p>
+              Same engine, same <code class="mono">.pson</code> contract, four transports. Use the SDK from your
+              backend, the HTTP API from anywhere, the CLI for local workflows, or MCP when a
+              framework expects it.
+            </p>
+            <ul class="surfaces__list">
+              <li><strong>@pson5/sdk</strong><span>TypeScript, server-first</span><em>direct</em></li>
+              <li><strong>/v1/pson/*</strong><span>HTTP, auth-gated, audited</span><em>remote</em></li>
+              <li><strong>pson</strong><span>CLI with --json for scripting</span><em>local</em></li>
+              <li><strong>/v1/mcp · mcp-stdio</strong><span>JSON-RPC for agent frameworks</span><em>mcp</em></li>
+            </ul>
+          </div>
+
+          <div class="code-card reveal">
+            <div class="code-tabs" role="tablist" aria-label="PSON5 usage examples">
+              <button class="code-tab" role="tab" aria-selected="true" aria-controls="panel-sdk" id="tab-sdk" data-tab="sdk">sdk.ts</button>
+              <button class="code-tab" role="tab" aria-selected="false" aria-controls="panel-api" id="tab-api" data-tab="api">api.http</button>
+              <button class="code-tab" role="tab" aria-selected="false" aria-controls="panel-cli" id="tab-cli" data-tab="cli">pson (cli)</button>
+              <button class="code-tab" role="tab" aria-selected="false" aria-controls="panel-mcp" id="tab-mcp" data-tab="mcp">mcp-stdio</button>
+            </div>
+
+            <pre class="code-panel" id="panel-sdk" role="tabpanel" aria-labelledby="tab-sdk"><code><span class="c">// Same engine, direct call. One context, already redacted.</span>
+<span class="k">import</span> <span class="b">{</span> PsonClient <span class="b">}</span> <span class="k">from</span> <span class="s">"@pson5/sdk"</span>;
+
+<span class="k">const</span> pson = <span class="k">new</span> <span class="p">PsonClient</span>();
+
+<span class="k">const</span> context = <span class="k">await</span> pson.<span class="p">getAgentContext</span>(<span class="s">"pson_123"</span>, <span class="b">{</span>
+  intent:              <span class="s">"help the user plan a deadline-sensitive task"</span>,
+  include_predictions: <span class="n">true</span>,
+  max_items:           <span class="n">6</span>,
+  min_confidence:      <span class="n">0.6</span>
+<span class="b">}</span>);
+
+<span class="c">// context.personal_data — relevance-ranked</span>
+<span class="c">// context.redaction_notes — why anything was filtered</span>
+<span class="c">// context.constraints.restricted_fields — still honoured</span></code></pre>
+
+            <pre class="code-panel" id="panel-api" role="tabpanel" aria-labelledby="tab-api" hidden><code><span class="c"># HTTP. Auth-gated. Per-request id. Redacted for non-admin.</span>
+<span class="p">POST</span> /v1/pson/agent-context <span class="k">HTTP</span>/1.1
+<span class="k">content-type</span>: application/json
+<span class="k">authorization</span>: Bearer &lt;jwt&gt;
+<span class="k">x-pson-tenant-id</span>: tenant_acme
+
+<span class="b">{</span>
+  <span class="k">"profile_id"</span>: <span class="s">"pson_123"</span>,
+  <span class="k">"intent"</span>:     <span class="s">"help the user plan"</span>,
+  <span class="k">"max_items"</span>:  <span class="n">6</span>
+<span class="b">}</span>
+
+<span class="c"># response includes redaction_notes + constraints</span>
+<span class="c"># header: x-pson-request-id: req_&lt;uuid&gt;</span></code></pre>
+
+            <pre class="code-panel" id="panel-cli" role="tabpanel" aria-labelledby="tab-cli" hidden><code><span class="c"># Local profile.  --json makes it scriptable.</span>
+<span class="p">$</span> pson init study_user <span class="k">--store</span> .pson5-store
+<span class="b">{</span>
+  <span class="k">"profile_id"</span>: <span class="s">"pson_1776913414584"</span>,
+  <span class="k">"revision"</span>:   <span class="n">1</span>
+<span class="b">}</span>
+
+<span class="p">$</span> pson agent-context pson_1776913414584 \
+    <span class="k">--intent</span> <span class="s">"help me plan a study session"</span> \
+    <span class="k">--include-predictions</span> <span class="k">--json</span>
+<span class="b">{</span><span class="k">"success"</span>:<span class="n">true</span>,<span class="k">"data"</span>:<span class="b">{</span><span class="k">"personal_data"</span>:<span class="b">{</span>...<span class="b">}</span>,
+  <span class="k">"redaction_notes"</span>:<span class="b">[]</span>,<span class="k">"constraints"</span>:<span class="b">{</span>...<span class="b">}</span><span class="b">}</span><span class="b">}</span></code></pre>
+
+            <pre class="code-panel" id="panel-mcp" role="tabpanel" aria-labelledby="tab-mcp" hidden><code><span class="c"># Stdio MCP server. Frameworks get typed tools.</span>
+<span class="p">$</span> pson mcp-stdio <span class="k">--store</span> .pson5-store
+
+<span class="c"># Exposes: pson_load_profile_by_user_id</span>
+<span class="c">#          pson_create_profile</span>
+<span class="c">#          pson_get_agent_context</span>
+<span class="c">#          pson_get_next_questions</span>
+<span class="c">#          pson_learn</span>
+<span class="c">#          pson_simulate</span>
+<span class="c">#          pson_get_provider_policy</span>
+
+<span class="c"># Each tool carries its own role + scope policy,</span>
+<span class="c"># the same set the HTTP API enforces.</span></code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================================== AGENTS ================================== -->
+      <section class="shell section" id="agents">
+        <header class="section-head reveal">
+          <div>
+            <span class="eyebrow">05 · For Agents</span>
+            <h2 class="section-head__title">Built <em class="italic-mark">for</em> agents, not against them.</h2>
+          </div>
+          <p class="section-head__lede">
+            Agents get a standardized tool contract, a ready-to-load Claude skill, and
+            MCP transport. They never need to read the raw profile — the projection already
+            enforces consent, confidence, and restricted fields.
+          </p>
+        </header>
+
+        <div class="agents">
+          <article class="agent-card reveal">
+            <span class="agent-card__tag">01 · Tool Contract</span>
+            <h3 class="agent-card__title">Seven typed tools, one executor.</h3>
+            <p class="agent-card__desc">
+              <code class="mono">getPsonAgentToolDefinitions()</code> and <code class="mono">createPsonAgentToolExecutor()</code>
+              give any agent framework the same shape — SDK, OpenAI function format,
+              or MCP-over-HTTP.
+            </p>
+            <div class="agent-card__tools">
+              <span>pson_get_agent_context</span>
+              <span>pson_learn</span>
+              <span>pson_simulate</span>
+              <span>pson_get_next_questions</span>
+              <span>+3 more</span>
+            </div>
+          </article>
+          <article class="agent-card reveal">
+            <span class="agent-card__tag">02 · Claude Skill</span>
+            <h3 class="agent-card__title">A skill file your agent can just load.</h3>
+            <p class="agent-card__desc">
+              <code class="mono">skills/pson-agent/SKILL.md</code> encodes the safe-usage contract — when to
+              ask, when to simulate, when to respect a block — so the agent doesn't have to
+              invent it.
+            </p>
+            <div class="agent-card__tools">
+              <span>observed vs inferred</span>
+              <span>question style hints</span>
+              <span>scope gates</span>
+            </div>
+          </article>
+          <article class="agent-card reveal">
+            <span class="agent-card__tag">03 · MCP Transport</span>
+            <h3 class="agent-card__title">Local stdio · HTTP JSON-RPC.</h3>
+            <p class="agent-card__desc">
+              Plug into Anthropic's MCP ecosystem without rewriting anything. Same auth,
+              same per-tool role and scope policy, same audit log.
+            </p>
+            <div class="agent-card__tools">
+              <span>initialize</span>
+              <span>tools/list</span>
+              <span>tools/call</span>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- ================================== PRINCIPLES ================================== -->
+      <section class="shell section">
+        <div class="principles reveal">
+          <blockquote class="principles__quote">
+            Agents building PSON5 must preserve this distinction throughout the codebase:
+            what the user said, what the system inferred, what the simulator predicts.
+          </blockquote>
+
+          <ol class="principles__list">
+            <li>
+              <em>01</em>
+              <div>
+                <strong>Probabilistic over absolute</strong>
+                <span>Every derived claim carries confidence. Nothing is inferred as fact.</span>
+              </div>
+            </li>
+            <li>
+              <em>02</em>
+              <div>
+                <strong>Consent-first data collection</strong>
+                <span>Scopes gate acquisition. Restricted fields follow the profile out the door.</span>
+              </div>
+            </li>
+            <li>
+              <em>03</em>
+              <div>
+                <strong>Explainability as a deliverable</strong>
+                <span>Predictions carry reasoning traces. Redactions carry reason codes.</span>
+              </div>
+            </li>
+            <li>
+              <em>04</em>
+              <div>
+                <strong>Portability of the profile</strong>
+                <span><code class="mono">.pson</code> is exportable, validatable, and agnostic to your runtime.</span>
+              </div>
+            </li>
+            <li>
+              <em>05</em>
+              <div>
+                <strong>Confidence that decays</strong>
+                <span>Yesterday's inference is weaker than today's. Evidence ages.</span>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ================================== CTA ================================== -->
+      <section class="shell cta">
+        <span class="eyebrow">Start Here</span>
+        <h2>The shortest path is the <em>dashboard</em>.</h2>
+        <p class="cta__lede">
+          Inspect a profile end to end, run simulations against it, wire a provider,
+          or sync the knowledge graph to Neo4j — all through the same engine that the
+          SDK, API, and CLI sit on.
+        </p>
+        <div class="cta__ctas">
+          <a class="btn btn--primary" href="/access">
+            <span>Open Dashboard</span>
+            <svg class="btn--arrow" width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M2 6h8m0 0L6 2m4 4L6 10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
+          <a class="btn btn--ghost" href="/console">
+            <span>Go directly to console</span>
+          </a>
+        </div>
+      </section>
+    </main>
+
+    <!-- ================================== FOOTER ================================== -->
+    <footer class="site-footer">
+      <div class="shell footer-grid">
+        <div class="footer-brand">
+          <a class="wordmark" href="/">
+            <span class="wordmark__dot" aria-hidden="true"></span>
+            <span>PSON<span class="italic-mark">5</span></span>
+          </a>
+          <p>An open standard and infrastructure for cognitive user profiles. MIT licensed, built in the open.</p>
+        </div>
+        <div class="footer-col">
+          <h4>Product</h4>
+          <ul>
+            <li><a href="#standard">Standard</a></li>
+            <li><a href="#pipeline">Pipeline</a></li>
+            <li><a href="#surfaces">Surfaces</a></li>
+            <li><a href="#agents">Agents</a></li>
+            <li><a href="/access">Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Developers</h4>
+          <ul>
+            <li><a href="/console">Console</a></li>
+            <li><a href="https://github.com/fredabila/pson5#readme">README</a></li>
+            <li><a href="https://github.com/fredabila/pson5/tree/main/docs">Docs</a></li>
+            <li><a href="https://github.com/fredabila/pson5/blob/main/PSON5_SCOPE.md">Scope</a></li>
+            <li><a href="https://github.com/fredabila/pson5/blob/main/CHANGELOG.md">Changelog</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h4>Community</h4>
+          <ul>
+            <li><a href="https://github.com/fredabila/pson5">GitHub</a></li>
+            <li><a href="https://github.com/fredabila/pson5/issues">Issues</a></li>
+            <li><a href="https://github.com/fredabila/pson5/blob/main/CONTRIBUTING.md">Contributing</a></li>
+            <li><a href="https://github.com/fredabila/pson5/blob/main/SECURITY.md">Security</a></li>
+            <li><a href="https://github.com/fredabila/pson5/blob/main/LICENSE">License</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="shell footer-bottom">
+        <span>PSON5 · v0.1.0 · MIT</span>
+        <span>Built for structured, explainable, agent-safe personalization.</span>
+      </div>
+    </footer>
+
+    <script src="/landing.js" defer></script>
   </body>
 </html>
