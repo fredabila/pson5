@@ -29,7 +29,8 @@ export type EvidenceSourceType =
   | "event"
   | "correction"
   | "import"
-  | "simulation_feedback";
+  | "simulation_feedback"
+  | "ai_modeling";
 
 export interface ConsentRecord {
   granted: boolean;

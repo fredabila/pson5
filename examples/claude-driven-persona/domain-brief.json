@@ -1,0 +1,19 @@
+{
+  "id": "tech-talent-intelligence",
+  "title": "Tech talent intelligence — recruiting / employment / career",
+  "description": "Build a rich understanding of how this engineer works, what they want out of their career, where they thrive, what they avoid, and what signals would move them. The output will be used by a recruiting assistant plus a long-term career-coaching agent. We care about breadth across ten interlinked areas: technical depth and stack, engineering principles and taste, career trajectory and current role, compensation philosophy, work style and environment, learning and growth preferences, collaboration and leadership, side projects and public work, industry interests and thesis, and values / tradeoffs they refuse to make.",
+  "target_areas": [
+    "tech_stack_depth",
+    "engineering_principles",
+    "career_trajectory",
+    "compensation_philosophy",
+    "work_style",
+    "learning_and_growth",
+    "collaboration_and_leadership",
+    "side_projects",
+    "industry_interests",
+    "values_and_tradeoffs"
+  ],
+  "sensitivity": "standard",
+  "max_questions": 24
+}

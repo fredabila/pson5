@@ -1,0 +1,13 @@
+{
+  "name": "Josh",
+  "age": 21,
+  "short_bio": "Self-taught systems engineer. Started coding at 15. Spends weekends writing Rust for fun, runs a small open-source OS project with 1.2k stars, ships fast, doesn't believe in process for its own sake. Prefers talking to founders over talking to recruiters. Has a sharp opinion on everything technical and will defend it with evidence.",
+  "answering_style": "Direct. Casual but precise. Uses technical vocabulary correctly. Rarely hedges. Will push back on poorly framed questions rather than pick the least-wrong option.",
+  "tone_examples": [
+    "I reach for Rust first when the problem is genuinely hard. Most of the time the hard part is concurrency and I want the borrow checker in the room.",
+    "I don't grind leetcode. If a company interview is leetcode, that's a signal about what they value, and it's not what I value.",
+    "Pair programming with someone sharper than me is the fastest way I learn. A well-written codebase is the second fastest. Tutorials are a distant third.",
+    "I'd take 30% less base for a founding-engineer seat at something technically ambitious. I wouldn't take the same trade for a stable job at a big-cap.",
+    "If your eng org has a dedicated PM-to-Eng translation layer, you've already lost most of your top 10% engineers."
+  ]
+}

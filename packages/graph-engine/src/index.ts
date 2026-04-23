@@ -152,18 +152,104 @@ function buildEdges(profile: PsonProfile): GraphEdge[] {
   return edges;
 }
 
+const SYSTEM_INFERRED_KEYS = new Set(["heuristics", "contradictions", "ai_model", "last_modeled_at"]);
+
+function collectDomainTraitNodes(profile: PsonProfile): GraphNode[] {
+  const inferred = asRecord(profile.layers.inferred) ?? {};
+  const nodes: GraphNode[] = [];
+
+  for (const [domain, value] of Object.entries(inferred)) {
+    if (SYSTEM_INFERRED_KEYS.has(domain)) {
+      continue;
+    }
+    const record = asRecord(value);
+    const traits = Array.isArray(record?.traits) ? (record.traits as Record<string, unknown>[]) : [];
+    for (const trait of traits) {
+      nodes.push(getTraitNode(domain, trait));
+    }
+  }
+
+  return nodes;
+}
+
+function buildDomainInferenceEdges(profile: PsonProfile): GraphEdge[] {
+  const edges: GraphEdge[] = [];
+  const inferred = asRecord(profile.layers.inferred) ?? {};
+  const observed = profile.layers.observed ?? {};
+  const heuristicIds = new Set(
+    (Array.isArray(inferred.heuristics) ? (inferred.heuristics as Array<{ id?: unknown }>) : [])
+      .map((h) => (typeof h.id === "string" ? h.id : null))
+      .filter((id): id is string => id !== null)
+  );
+
+  for (const [domain, value] of Object.entries(inferred)) {
+    if (SYSTEM_INFERRED_KEYS.has(domain)) continue;
+    const record = asRecord(value);
+    const traits = Array.isArray(record?.traits) ? (record.traits as Array<Record<string, unknown>>) : [];
+    const observedFacts = asRecord(asRecord(observed[domain])?.facts) ?? {};
+
+    for (const trait of traits) {
+      const key = String(trait.key ?? "");
+      if (!key) continue;
+
+      // Connect any observed fact that shares the trait key to the trait node.
+      if (observedFacts[key] !== undefined) {
+        edges.push({
+          id: `edge:observed_${domain}_${key}_to_${domain}_${key}`,
+          from: `trait:${domain}:${key}`,
+          to: `trait:${domain}:${key}`,
+          type: "correlates_with"
+        });
+      }
+
+      // Connect the trait to every heuristic in the same domain (loose affinity).
+      const sourceHeuristics = Array.isArray(inferred.heuristics)
+        ? (inferred.heuristics as Array<Record<string, unknown>>).filter(
+            (h) => String(h.domain ?? "") === domain
+          )
+        : [];
+      for (const heuristic of sourceHeuristics) {
+        const heuristicId = String(heuristic.id ?? "");
+        if (!heuristicId || !heuristicIds.has(heuristicId)) continue;
+        edges.push({
+          id: `edge:${domain}_${key}_to_${heuristicId}`,
+          from: `trait:${domain}:${key}`,
+          to: `heuristic:${heuristicId}`,
+          type: "reinforces"
+        });
+      }
+    }
+  }
+
+  return edges;
+}
+
+function dedupeEdges(edges: GraphEdge[]): GraphEdge[] {
+  const seen = new Set<string>();
+  const unique: GraphEdge[] = [];
+  for (const edge of edges) {
+    if (seen.has(edge.id)) continue;
+    seen.add(edge.id);
+    unique.push(edge);
+  }
+  return unique;
+}
+
 export function deriveKnowledgeGraph(profile: PsonProfile): PsonProfile {
-  const coreNodes = getTraits(profile, "core").map((trait) => getTraitNode("core", trait));
-  const educationNodes = getTraits(profile, "education").map((trait) => getTraitNode("education", trait));
-  const productivityNodes = getTraits(profile, "productivity").map((trait) => getTraitNode("productivity", trait));
+  const domainTraitNodes = collectDomainTraitNodes(profile);
   const heuristicNodes = getHeuristics(profile).map((heuristic) => getHeuristicNode(heuristic));
-  const stateNodes = profile.state_model.states.map((state) => getStateNode(state as unknown as Record<string, unknown>));
+  const stateNodes = profile.state_model.states.map((state) =>
+    getStateNode(state as unknown as Record<string, unknown>)
+  );
+
+  const ruleEdges = buildEdges(profile);
+  const domainEdges = buildDomainInferenceEdges(profile);
 
   return {
     ...profile,
     knowledge_graph: {
-      nodes: [...coreNodes, ...educationNodes, ...productivityNodes, ...heuristicNodes, ...stateNodes],
-      edges: buildEdges(profile)
+      nodes: [...domainTraitNodes, ...heuristicNodes, ...stateNodes],
+      edges: dedupeEdges([...ruleEdges, ...domainEdges])
     }
   };
 }

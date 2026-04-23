@@ -907,6 +907,75 @@ export async function submitLearningAnswers(
   };
 }
 
+/**
+ * Create a learning session with no candidate registry. Intended for
+ * generative-mode acquisition where a provider invents each question.
+ */
+export async function openGenerativeSession(
+  profileId: string,
+  input: { domains?: string[]; depth?: PsonDepth } = {},
+  options?: ProfileStoreOptions
+): Promise<LearningSessionState> {
+  const profile = await loadProfile(profileId, options);
+  const session: LearningSessionState = {
+    session_id: createSessionId(),
+    profile_id: profile.profile_id,
+    domains: getEffectiveDomains(profile, input.domains),
+    depth: getEffectiveDepth(profile, input.depth),
+    asked_question_ids: [],
+    answered_question_ids: [],
+    generated_questions: [],
+    contradiction_flags: [],
+    confidence_gaps: [],
+    fatigue_score: 0,
+    stop_reason: null,
+    status: "active",
+    created_at: nowIso(),
+    updated_at: nowIso()
+  };
+  await saveSession(session, options);
+  return session;
+}
+
+/**
+ * Append provider-generated questions to an existing session and persist it.
+ * Returns the updated session. Used by the generative-mode flow: after
+ * deriveGenerativeQuestions returns new questions, call this to make them
+ * visible to submitLearningAnswers.
+ */
+export async function appendGeneratedQuestions(
+  sessionId: string,
+  questions: QuestionDefinition[],
+  options?: ProfileStoreOptions
+): Promise<LearningSessionState> {
+  const session = await loadSession(sessionId, options);
+  const incomingIds = new Set(questions.map((q) => q.id));
+  const filteredExisting = (session.generated_questions ?? []).filter((q) => !incomingIds.has(q.id));
+
+  const next: LearningSessionState = {
+    ...session,
+    generated_questions: [...filteredExisting, ...questions],
+    asked_question_ids: Array.from(
+      new Set([...session.asked_question_ids, ...questions.map((q) => q.id)])
+    ),
+    updated_at: nowIso()
+  };
+  await saveSession(next, options);
+  return next;
+}
+
+/**
+ * Read a persisted learning session by id. Exposed for callers (such as the
+ * generative demo) that want to inspect session state between turns without
+ * going through getNextQuestions.
+ */
+export async function readSession(
+  sessionId: string,
+  options?: ProfileStoreOptions
+): Promise<LearningSessionState> {
+  return loadSession(sessionId, options);
+}
+
 export const acquisitionEngineStatus = {
   phase: "implemented",
   next_step: "Add adaptive information-gain scoring and contradiction/fatigue handling."

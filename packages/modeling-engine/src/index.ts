@@ -175,13 +175,122 @@ function clampConfidence(value: number): number {
   return Math.max(0, Math.min(1, Number(value.toFixed(2))));
 }
 
+function buildProviderTraitRecord(
+  candidate: AiModelingInsight["trait_candidates"][number],
+  insight: AiModelingInsight
+): InferredTraitRecord {
+  const recordedAt = insight.generated_at ?? new Date().toISOString();
+  return {
+    key: candidate.key,
+    value: candidate.value,
+    domain: candidate.domain ?? "core",
+    source_question_ids: [],
+    confidence: {
+      score: clampConfidence(candidate.confidence ?? insight.overall_confidence ?? 0.55),
+      method: "hybrid",
+      last_validated_at: recordedAt,
+      decay_policy: { kind: "time_decay", half_life_days: 21 },
+      evidence: [
+        {
+          source_type: "ai_modeling",
+          source_id: `ai_model_${candidate.domain ?? "core"}_${candidate.key}`,
+          recorded_at: recordedAt,
+          weight: 0.7
+        }
+      ]
+    }
+  };
+}
+
+function buildProviderHeuristicRecord(
+  candidate: AiModelingInsight["heuristic_candidates"][number],
+  insight: AiModelingInsight
+): HeuristicRecord {
+  const recordedAt = insight.generated_at ?? new Date().toISOString();
+  return {
+    id: candidate.id,
+    domain: candidate.domain ?? "core",
+    description: candidate.description,
+    when: {},
+    outcome: candidate.outcome,
+    confidence: {
+      score: clampConfidence(candidate.confidence ?? insight.overall_confidence ?? 0.55),
+      method: "hybrid",
+      last_validated_at: recordedAt,
+      decay_policy: { kind: "time_decay", half_life_days: 21 },
+      evidence: [
+        {
+          source_type: "ai_modeling",
+          source_id: `ai_heuristic_${candidate.id}`,
+          recorded_at: recordedAt,
+          weight: 0.7
+        }
+      ]
+    }
+  };
+}
+
+function mergeTraitsByDomain(
+  existing: unknown,
+  additions: InferredTraitRecord[]
+): Record<string, { traits: InferredTraitRecord[] }> {
+  const base = (asRecord(existing) ?? {}) as Record<string, { traits?: InferredTraitRecord[] } | unknown>;
+  const next: Record<string, { traits: InferredTraitRecord[] }> = {};
+
+  for (const [key, value] of Object.entries(base)) {
+    if (key === "heuristics" || key === "contradictions" || key === "ai_model" || key === "last_modeled_at") {
+      continue;
+    }
+    const record = asRecord(value) ?? {};
+    next[key] = {
+      ...record,
+      traits: Array.isArray(record.traits) ? (record.traits as InferredTraitRecord[]) : []
+    } as { traits: InferredTraitRecord[] };
+  }
+
+  for (const trait of additions) {
+    const domain = trait.domain || "core";
+    const bucket = next[domain] ?? { traits: [] };
+    const existingIndex = bucket.traits.findIndex((t) => t.key === trait.key);
+    if (existingIndex === -1) {
+      bucket.traits.push(trait);
+    }
+    next[domain] = bucket;
+  }
+
+  return next;
+}
+
 function applyProviderInsight(profile: PsonProfile, insight: AiModelingInsight): PsonProfile {
+  const existingInferred = asRecord(profile.layers.inferred) ?? {};
+  const existingHeuristics = Array.isArray(existingInferred.heuristics)
+    ? (existingInferred.heuristics as HeuristicRecord[])
+    : [];
+
+  const promotedTraits = (insight.trait_candidates ?? []).map((candidate) =>
+    buildProviderTraitRecord(candidate, insight)
+  );
+  const promotedHeuristics = (insight.heuristic_candidates ?? []).map((candidate) =>
+    buildProviderHeuristicRecord(candidate, insight)
+  );
+
+  const byDomain = mergeTraitsByDomain(existingInferred, promotedTraits);
+
+  const mergedHeuristics: HeuristicRecord[] = [...existingHeuristics];
+  for (const heuristic of promotedHeuristics) {
+    if (!mergedHeuristics.some((h) => h.id === heuristic.id)) {
+      mergedHeuristics.push(heuristic);
+    }
+  }
+
   return {
     ...profile,
     layers: {
       ...profile.layers,
       inferred: {
-        ...profile.layers.inferred,
+        ...existingInferred,
+        ...byDomain,
+        heuristics: mergedHeuristics,
         ai_model: insight
       }
     },

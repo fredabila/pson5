@@ -12,3 +12,4 @@ coverage/
 apps/api/.pson5-store/
 apps/api/.pson5-store*/
 .claude/
+examples/claude-driven-persona/output/

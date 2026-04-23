@@ -1114,6 +1114,66 @@ function consoleIntentSchema(): OpenAiResponseFormat {
   };
 }
 
+function generativeQuestionSchema(): OpenAiResponseFormat {
+  return {
+    name: "pson_generative_questions",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["stop", "stop_reason", "questions"],
+      properties: {
+        stop: { type: "boolean" },
+        stop_reason: { type: ["string", "null"] },
+        questions: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "id",
+              "domain",
+              "prompt",
+              "type",
+              "depth",
+              "sensitivity",
+              "information_targets",
+              "rationale",
+              "confidence_target"
+            ],
+            properties: {
+              id: { type: "string" },
+              domain: { type: "string" },
+              prompt: { type: "string" },
+              type: { type: "string", enum: ["single_choice", "free_text", "scenario"] },
+              depth: { type: "string", enum: ["light", "standard", "deep"] },
+              sensitivity: { type: "string", enum: ["low", "standard", "restricted"] },
+              information_targets: {
+                type: "array",
+                items: { type: "string" }
+              },
+              choices: {
+                type: ["array", "null"],
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["value", "label"],
+                  properties: {
+                    value: { type: "string" },
+                    label: { type: "string" }
+                  }
+                }
+              },
+              rationale: { type: "string" },
+              confidence_target: { type: "string" },
+              answer_style_hint: { type: ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  };
+}
+
 function adaptiveQuestionSchema(): OpenAiResponseFormat {
   return {
     name: "pson_adaptive_question",
@@ -1649,8 +1709,181 @@ export async function deriveAdaptiveQuestion(
   };
 }
 
+/**
+ * Inputs for generative question derivation — the zero-registry path.
+ *
+ * Unlike `deriveAdaptiveQuestion` (which rewrites a pre-registered candidate),
+ * this asks the model to invent net-new questions tuned to a domain brief,
+ * the current profile state, and any known confidence gaps.
+ */
+export interface DomainBrief {
+  id: string;
+  title: string;
+  description: string;
+  target_areas: string[];
+  sensitivity?: "low" | "standard" | "restricted";
+  max_questions?: number;
+}
+
+export interface GenerativeQuestionRequest {
+  profile: PsonProfile;
+  brief: DomainBrief;
+  session_state: {
+    session_id?: string;
+    asked_question_ids: string[];
+    answered_question_ids: string[];
+    confidence_gaps: string[];
+    fatigue_score?: number;
+    observed_facts?: Record<string, unknown>;
+    inferred_traits?: Record<string, unknown>;
+  };
+  strategy?: "broad_scan" | "depth_focus" | "contradiction_probe" | "follow_up";
+  question_count?: number;
+}
+
+export interface GenerativeQuestionResult {
+  stop: boolean;
+  stop_reason: string | null;
+  questions: QuestionDefinition[];
+  rationale_by_id: Record<string, string>;
+}
+
+function normalizeGenerativeQuestion(entry: Record<string, unknown>, briefId: string): QuestionDefinition | null {
+  const id = typeof entry.id === "string" ? entry.id.trim() : "";
+  const prompt = typeof entry.prompt === "string" ? entry.prompt.trim() : "";
+  const domain = typeof entry.domain === "string" && entry.domain.trim().length > 0 ? entry.domain.trim() : briefId;
+  const type = entry.type;
+  const depth = entry.depth;
+  const sensitivity = entry.sensitivity;
+  const informationTargets = Array.isArray(entry.information_targets)
+    ? entry.information_targets.filter((target): target is string => typeof target === "string" && target.length > 0)
+    : [];
+  const choices = Array.isArray(entry.choices)
+    ? (entry.choices as Array<Record<string, unknown>>)
+        .map((choice) => ({
+          value: typeof choice.value === "string" ? choice.value : "",
+          label: typeof choice.label === "string" ? choice.label : ""
+        }))
+        .filter((choice) => choice.value.length > 0 && choice.label.length > 0)
+    : undefined;
+
+  if (!id || !prompt || informationTargets.length === 0) {
+    return null;
+  }
+
+  if (type !== "single_choice" && type !== "free_text" && type !== "scenario") {
+    return null;
+  }
+
+  if (depth !== "light" && depth !== "standard" && depth !== "deep") {
+    return null;
+  }
+
+  if (sensitivity !== "low" && sensitivity !== "standard" && sensitivity !== "restricted") {
+    return null;
+  }
+
+  const answerStyleHint =
+    typeof entry.answer_style_hint === "string" && entry.answer_style_hint.trim().length > 0
+      ? entry.answer_style_hint.trim()
+      : type === "single_choice"
+        ? "Answer naturally; PSON5 maps your wording to the structured choice."
+        : "Answer naturally in your own words.";
+
+  return {
+    id,
+    domain,
+    prompt,
+    type,
+    depth,
+    sensitivity,
+    information_targets: informationTargets,
+    follow_up_rules: [],
+    choices: type === "single_choice" ? (choices && choices.length > 0 ? choices : undefined) : undefined,
+    generated_by: "provider",
+    answer_style_hint: answerStyleHint,
+    generation_rationale: typeof entry.rationale === "string" ? entry.rationale : undefined
+  };
+}
+
+/**
+ * Ask the connected model to invent the next batch of high-value questions
+ * for a given domain brief and profile state. Returns normalized
+ * {@link QuestionDefinition} records ready to be appended to a session's
+ * `generated_questions` array.
+ */
+export async function deriveGenerativeQuestions(
+  request: GenerativeQuestionRequest,
+  options?: { rootDir?: string }
+): Promise<GenerativeQuestionResult | null> {
+  const policyStatus = getProviderPolicyStatus(request.profile, "modeling", { rootDir: options?.rootDir });
+  if (!policyStatus.allowed) {
+    return null;
+  }
+
+  const strategy = request.strategy ?? "broad_scan";
+  const questionCount = Math.max(1, Math.min(request.question_count ?? 1, 5));
+
+  const payload = {
+    task: "generate_next_questions",
+    strategy,
+    question_count: questionCount,
+    brief: request.brief,
+    observed_facts: request.session_state.observed_facts ?? {},
+    inferred_traits: request.session_state.inferred_traits ?? {},
+    confidence_gaps: request.session_state.confidence_gaps,
+    asked_question_ids: request.session_state.asked_question_ids,
+    answered_question_ids: request.session_state.answered_question_ids,
+    fatigue_score: request.session_state.fatigue_score ?? 0
+  };
+
+  const instructions = [
+    "You are the adaptive acquisition layer for PSON5.",
+    "Invent the next high-value questions for the given domain brief.",
+    "Every question must carry a stable snake-case id, a single-sentence prompt written in second person,",
+    "a `type` (single_choice | free_text | scenario), a `depth` (light | standard | deep),",
+    "a `sensitivity` (low | standard | restricted),",
+    "and an `information_targets` array of short dot-free fact keys the answer will populate.",
+    "For single_choice questions include 3-6 mutually exclusive, exhaustive `choices` with terse `value` and `label`.",
+    "Avoid repeating anything in asked_question_ids. Probe the largest confidence gap first.",
+    "If the brief looks satisfied or the user would get fatigued, set stop: true with a short stop_reason.",
+    "Keep ids under 48 chars, lowercase, snake_case, with a domain prefix."
+  ].join(" ");
+
+  const raw = await callProviderJson(generativeQuestionSchema(), instructions, payload, options);
+  if (!raw) {
+    return null;
+  }
+
+  const questions: QuestionDefinition[] = [];
+  const rationales: Record<string, string> = {};
+
+  if (Array.isArray(raw.questions)) {
+    for (const entry of raw.questions) {
+      const record = asRecord(entry);
+      if (!record) {
+        continue;
+      }
+      const normalized = normalizeGenerativeQuestion(record, request.brief.id);
+      if (normalized) {
+        questions.push(normalized);
+        if (typeof record.rationale === "string") {
+          rationales[normalized.id] = record.rationale;
+        }
+      }
+    }
+  }
+
+  return {
+    stop: raw.stop === true,
+    stop_reason: typeof raw.stop_reason === "string" ? raw.stop_reason : null,
+    questions,
+    rationale_by_id: rationales
+  };
+}
+
 export const providerEngineStatus = {
   phase: "implemented",
   provider: "multi",
-  next_step: "Add adaptive acquisition prompts, retries, richer provider-specific validation, and shared adapter tests."
+  next_step: "Promote the generative-question flow into the SDK + CLI surface."
 } as const;
