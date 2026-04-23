@@ -1,0 +1,43 @@
+# Minimal Neo4j instance for local PSON5 exploration.
+#
+# Launch from the repo root:
+#   docker compose -f scripts/docker-compose.neo4j.yml up -d
+#
+# Then open http://localhost:7474 in a browser, log in as
+# neo4j / pson5-local-dev (as configured below), and run the sync:
+#   node scripts/sync-profile-to-neo4j.mjs examples/claude-driven-persona/output/profile.json
+#
+# Stop and remove:
+#   docker compose -f scripts/docker-compose.neo4j.yml down
+#
+# The password here is intentionally obvious. Rotate it for any
+# environment beyond your own machine.
+
+services:
+  neo4j:
+    image: neo4j:5.24-community
+    container_name: pson5-neo4j-local
+    restart: unless-stopped
+    ports:
+      - "7474:7474"  # HTTP (Neo4j Browser)
+      - "7687:7687"  # Bolt (driver)
+    environment:
+      NEO4J_AUTH: "neo4j/pson5-local-dev"
+      NEO4J_server_memory_heap_initial__size: "512m"
+      NEO4J_server_memory_heap_max__size: "1G"
+      NEO4J_server_memory_pagecache_size: "512m"
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - pson5-neo4j-data:/data
+      - pson5-neo4j-logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+volumes:
+  pson5-neo4j-data:
+  pson5-neo4j-logs:

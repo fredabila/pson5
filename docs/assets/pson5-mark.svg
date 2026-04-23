@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PSON5 mark">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#b6ff5c"/>
+      <stop offset="100%" stop-color="#7cc038"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="64" height="64" rx="14" ry="14" fill="url(#bg)"/>
+  <!-- three stacked layer bars -->
+  <rect x="14" y="18" width="36" height="3" rx="1.5" fill="#09090b" opacity="0.88"/>
+  <rect x="14" y="30" width="36" height="3" rx="1.5" fill="#09090b" opacity="0.55"/>
+  <rect x="14" y="42" width="36" height="3" rx="1.5" fill="#09090b" opacity="0.25"/>
+</svg>

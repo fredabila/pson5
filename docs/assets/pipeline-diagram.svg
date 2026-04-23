@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 260" role="img" aria-label="PSON5 pipeline — acquisition through projection">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0e0f12"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0,0 L10,5 L0,10 Z" fill="#b6ff5c" opacity="0.8"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="260" fill="url(#bg2)"/>
+
+  <g font-family="'Fraunces', Georgia, serif" fill="#f5f4ef">
+    <!-- Stages -->
+    <g transform="translate(40 90)">
+      <rect width="140" height="80" rx="12" fill="#141518" stroke="#f5f4ef" stroke-opacity="0.09"/>
+      <text x="14" y="26" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">01 · ACQUISITION</text>
+      <text x="14" y="52" font-size="18">Questions</text>
+      <text x="14" y="70" font-family="ui-monospace, monospace" font-size="9" fill="#b8b6ae">adaptive · generative</text>
+    </g>
+    <line x1="180" y1="130" x2="218" y2="130" stroke="#b6ff5c" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+    <g transform="translate(220 90)">
+      <rect width="140" height="80" rx="12" fill="#141518" stroke="#f5f4ef" stroke-opacity="0.09"/>
+      <text x="14" y="26" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">02 · MODELING</text>
+      <text x="14" y="52" font-size="18">Traits</text>
+      <text x="14" y="70" font-family="ui-monospace, monospace" font-size="9" fill="#b8b6ae">rules + provider</text>
+    </g>
+    <line x1="360" y1="130" x2="398" y2="130" stroke="#b6ff5c" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+    <g transform="translate(400 90)">
+      <rect width="140" height="80" rx="12" fill="#141518" stroke="#f5f4ef" stroke-opacity="0.09"/>
+      <text x="14" y="26" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">03 · STATE</text>
+      <text x="14" y="52" font-size="18">Decay</text>
+      <text x="14" y="70" font-family="ui-monospace, monospace" font-size="9" fill="#b8b6ae">triggers · half-life</text>
+    </g>
+    <line x1="540" y1="130" x2="578" y2="130" stroke="#b6ff5c" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+    <g transform="translate(580 90)">
+      <rect width="140" height="80" rx="12" fill="#141518" stroke="#f5f4ef" stroke-opacity="0.09"/>
+      <text x="14" y="26" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">04 · GRAPH</text>
+      <text x="14" y="52" font-size="18">Paths</text>
+      <text x="14" y="70" font-family="ui-monospace, monospace" font-size="9" fill="#b8b6ae">k-hop · explain</text>
+    </g>
+    <line x1="720" y1="130" x2="758" y2="130" stroke="#b6ff5c" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+    <g transform="translate(760 90)">
+      <rect width="140" height="80" rx="12" fill="#141518" stroke="#f5f4ef" stroke-opacity="0.09"/>
+      <text x="14" y="26" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">05 · SIMULATION</text>
+      <text x="14" y="52" font-size="18">Predict</text>
+      <text x="14" y="70" font-family="ui-monospace, monospace" font-size="9" fill="#b8b6ae">scenario · reasoning</text>
+    </g>
+    <line x1="900" y1="130" x2="938" y2="130" stroke="#b6ff5c" stroke-width="1.2" marker-end="url(#arrow)"/>
+
+    <g transform="translate(940 90)">
+      <rect width="180" height="80" rx="12" fill="#141518" stroke="#b6ff5c" stroke-opacity="0.5" stroke-width="1.5"/>
+      <text x="14" y="26" font-family="ui-monospace, monospace" font-size="9" fill="#b6ff5c" letter-spacing="1.5">06 · PROJECTION</text>
+      <text x="14" y="52" font-size="18">Agent context</text>
+      <text x="14" y="70" font-family="ui-monospace, monospace" font-size="9" fill="#b8b6ae">redaction-aware</text>
+    </g>
+
+    <!-- pulsing dot that travels the pipeline -->
+    <circle r="4" fill="#b6ff5c" filter="url(#blur)">
+      <animateMotion dur="6s" repeatCount="indefinite" path="M 0 40 L 1080 40"/>
+    </circle>
+    <circle r="3" fill="#b6ff5c" transform="translate(40 0)">
+      <animateMotion dur="6s" repeatCount="indefinite" path="M 0 40 L 1080 40"/>
+    </circle>
+
+    <!-- Title band -->
+    <text x="40" y="38" font-family="ui-monospace, monospace" font-size="10" fill="#b6ff5c" letter-spacing="2">PIPELINE — user signal to agent-safe context</text>
+    <text x="40" y="58" font-size="26">Six engines. One <tspan font-style="italic" fill="#b6ff5c">.pson</tspan> contract.</text>
+
+    <!-- Footer -->
+    <text x="40" y="220" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">STORAGE</text>
+    <text x="130" y="220" font-family="ui-monospace, monospace" font-size="10" fill="#b8b6ae">file · memory · document · postgres · neo4j-sync</text>
+
+    <text x="40" y="240" font-family="ui-monospace, monospace" font-size="9" fill="#7d7b73" letter-spacing="1.5">TRANSPORTS</text>
+    <text x="130" y="240" font-family="ui-monospace, monospace" font-size="10" fill="#b8b6ae">sdk · /v1/pson · pson cli · /v1/mcp · mcp-stdio</text>
+  </g>
+</svg>
