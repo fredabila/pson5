@@ -1,9 +1,16 @@
 import { createServer } from "node:http";
-import { createHmac, createPublicKey, timingSafeEqual, verify as verifySignature } from "node:crypto";
+import {
+  createHmac,
+  createPublicKey,
+  randomUUID,
+  timingSafeEqual,
+  verify as verifySignature
+} from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { InitProfileInput, ProfileStoreOptions } from "@pson5/core-types";
+import type { InitProfileInput, ProfileStoreOptions, PsonProfile } from "@pson5/core-types";
+import { redactProfileForExport } from "@pson5/privacy";
 import { getNextQuestions, submitLearningAnswers } from "@pson5/acquisition-engine";
 import { buildStoredAgentContext } from "@pson5/agent-context";
 import { explainPredictionSupport } from "@pson5/graph-engine";
@@ -114,6 +121,7 @@ interface ApiAccessAuditRecord {
   decision: "allowed" | "denied";
   status_code: number;
   reason?: string;
+  request_id?: string;
   auth_source?: AuthSource;
   caller_id?: string | null;
   subject_user_id?: string | null;
@@ -124,6 +132,34 @@ interface ApiAccessAuditRecord {
   user_id?: string | null;
   required_role?: RouteAccessLevel;
   required_scopes?: string[];
+  redaction_applied?: boolean;
+  redaction_level?: "full" | "safe";
+  duration_ms?: number;
+}
+
+const REQUEST_ID_HEADER = "x-pson-request-id";
+const REQUEST_ID_SYMBOL = Symbol.for("pson5.request.id");
+const REQUEST_STARTED_SYMBOL = Symbol.for("pson5.request.startedAt");
+
+function attachRequestId(
+  request: import("node:http").IncomingMessage,
+  existing?: string | null
+): string {
+  const incoming = existing?.trim();
+  const id = incoming && incoming.length > 0 && incoming.length <= 128 ? incoming : `req_${randomUUID()}`;
+  (request as unknown as { [key: symbol]: string })[REQUEST_ID_SYMBOL] = id;
+  (request as unknown as { [key: symbol]: number })[REQUEST_STARTED_SYMBOL] = Date.now();
+  return id;
+}
+
+function getRequestId(request: import("node:http").IncomingMessage): string | null {
+  const value = (request as unknown as { [key: symbol]: unknown })[REQUEST_ID_SYMBOL];
+  return typeof value === "string" ? value : null;
+}
+
+function getRequestDurationMs(request: import("node:http").IncomingMessage): number | undefined {
+  const startedAt = (request as unknown as { [key: symbol]: unknown })[REQUEST_STARTED_SYMBOL];
+  return typeof startedAt === "number" ? Date.now() - startedAt : undefined;
 }
 
 interface JsonRpcRequestBody {
@@ -264,8 +300,36 @@ function writePayload(
   response: import("node:http").ServerResponse<import("node:http").IncomingMessage>,
   payload: { body: string; statusCode: number; headers: Record<string, string> }
 ): void {
-  response.writeHead(payload.statusCode, payload.headers);
+  const headers = { ...payload.headers };
+  const request = response.req;
+  if (request) {
+    const requestId = getRequestId(request);
+    if (requestId) {
+      headers[REQUEST_ID_HEADER] = requestId;
+    }
+  }
+  response.writeHead(payload.statusCode, headers);
   response.end(payload.body);
+}
+
+function isPrivilegedCaller(caller: CallerContext): boolean {
+  return caller.role === "admin" || caller.scopes.has("profiles:admin");
+}
+
+function applyProfileRedactionForCaller(
+  profile: PsonProfile,
+  caller: CallerContext,
+  requestedLevel?: "full" | "safe" | null
+): { profile: PsonProfile; applied: boolean; level: "full" | "safe" } {
+  if (requestedLevel === "safe") {
+    return { profile: redactProfileForExport(profile, "safe"), applied: true, level: "safe" };
+  }
+
+  if (requestedLevel === "full" || isPrivilegedCaller(caller)) {
+    return { profile, applied: false, level: "full" };
+  }
+
+  return { profile: redactProfileForExport(profile, "safe"), applied: true, level: "safe" };
 }
 
 async function appendApiAccessAuditLog(
@@ -515,6 +579,8 @@ async function auditDenied(
       decision: "denied",
       status_code: payload.statusCode,
       reason: options.reason ?? getErrorMessageFromPayload(payload),
+      request_id: getRequestId(request) ?? undefined,
+      duration_ms: getRequestDurationMs(request),
       auth_source: options.auth_source,
       caller_id: options.caller_id ?? null,
       subject_user_id: options.subject_user_id ?? null,
@@ -546,6 +612,8 @@ async function auditAllowed(
       decision: "allowed",
       status_code: options.status_code ?? 200,
       reason: options.reason,
+      request_id: getRequestId(request) ?? undefined,
+      duration_ms: getRequestDurationMs(request),
       auth_source: options.auth_source,
       caller_id: options.caller_id ?? null,
       subject_user_id: options.subject_user_id ?? null,
@@ -555,7 +623,9 @@ async function auditAllowed(
       profile_id: options.profile_id ?? null,
       user_id: options.user_id ?? null,
       required_role: options.required_role,
-      required_scopes: options.required_scopes
+      required_scopes: options.required_scopes,
+      redaction_applied: options.redaction_applied,
+      redaction_level: options.redaction_level
     },
     storeOptions
   );
@@ -1255,6 +1325,9 @@ async function buildStoreRuntime(): Promise<{
 const storeRuntime = await buildStoreRuntime();
 
 const server = createServer(async (request, response) => {
+  const requestId = attachRequestId(request, request.headers[REQUEST_ID_HEADER] as string | undefined);
+  response.setHeader(REQUEST_ID_HEADER, requestId);
+
   try {
     if (!request.url || !request.method) {
       response.writeHead(400, { "content-type": "application/json" });
@@ -2344,6 +2417,35 @@ const server = createServer(async (request, response) => {
         caller,
         storeRuntime.storeOptions
       );
+      const requestedLevel = url.searchParams.get("redaction_level");
+      if (requestedLevel !== null && requestedLevel !== "full" && requestedLevel !== "safe") {
+        writePayload(response, errorJson("validation_error", "redaction_level must be full or safe.", 400));
+        return;
+      }
+      if (requestedLevel === "full" && !isPrivilegedCaller(caller)) {
+        const denial = errorJson(
+          "forbidden",
+          "Caller is not permitted to request an unredacted profile view.",
+          403
+        );
+        await auditDenied(request, storeRuntime.storeOptions, denial, {
+          operation: "profile-read",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          profile_id: profile.profile_id,
+          user_id: profile.user_id
+        });
+        writePayload(response, denial);
+        return;
+      }
+      const redaction = applyProfileRedactionForCaller(
+        profile,
+        caller,
+        (requestedLevel as "full" | "safe" | null) ?? null
+      );
       await auditAllowed(request, storeRuntime.storeOptions, {
         operation: "profile-read",
         tenant_id: requestTenantId,
@@ -2354,9 +2456,11 @@ const server = createServer(async (request, response) => {
         profile_id: profile.profile_id,
         user_id: profile.user_id,
         required_role: "viewer",
-        required_scopes: ["profiles:read"]
+        required_scopes: ["profiles:read"],
+        redaction_applied: redaction.applied,
+        redaction_level: redaction.level
       });
-      writePayload(response, json(profile));
+      writePayload(response, json(redaction.profile));
       return;
     }
 
@@ -2424,6 +2528,7 @@ const server = createServer(async (request, response) => {
       }
 
       const profileIds = await findProfilesByUserId(userId, storeRuntime.storeOptions);
+      const redaction = applyProfileRedactionForCaller(profile, caller, null);
       await auditAllowed(request, storeRuntime.storeOptions, {
         operation: "profile-by-user",
         tenant_id: requestTenantId,
@@ -2434,9 +2539,14 @@ const server = createServer(async (request, response) => {
         profile_id: profile.profile_id,
         user_id: profile.user_id,
         required_role: "viewer",
-        required_scopes: ["profiles:read"]
+        required_scopes: ["profiles:read"],
+        redaction_applied: redaction.applied,
+        redaction_level: redaction.level
       });
-      writePayload(response, json({ user_id: userId, profile, profile_ids: profileIds }));
+      writePayload(
+        response,
+        json({ user_id: userId, profile: redaction.profile, profile_ids: profileIds })
+      );
       return;
     }
 
