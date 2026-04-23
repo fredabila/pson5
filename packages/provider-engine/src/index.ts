@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
   AiHeuristicCandidate,
@@ -510,8 +510,17 @@ export async function saveProviderConfig(
       null,
       2
     )}\n`,
-    "utf8"
+    { encoding: "utf8", mode: 0o600 }
   );
+
+  // The `mode` option only applies when the file is freshly created.
+  // Re-chmod to 0600 in case we just overwrote an existing file with
+  // looser permissions. Silent failure on Windows is expected.
+  try {
+    await chmod(configPath, 0o600);
+  } catch {
+    // Windows / non-POSIX filesystems.
+  }
 
   return {
     path: configPath,

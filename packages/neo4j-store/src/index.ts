@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { auth, driver as createDriver, type Driver } from "neo4j-driver";
 import type {
@@ -151,8 +151,18 @@ export function saveNeo4jConfig(input: Neo4jConfig, options?: ProfileStoreOption
       null,
       2
     ),
-    "utf8"
+    { encoding: "utf8", mode: 0o600 }
   );
+
+  // Belt-and-braces: the `mode` flag in writeFileSync is honoured only
+  // when the file is first created. If it already existed we still want
+  // 0600 — chmod explicitly. Silent on Windows, where POSIX perms don't
+  // apply, but harmless.
+  try {
+    chmodSync(filePath, 0o600);
+  } catch {
+    // Windows / non-POSIX filesystems — rely on platform ACLs.
+  }
 
   return getStoredNeo4jConfig(options);
 }

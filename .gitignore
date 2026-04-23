@@ -16,3 +16,23 @@ examples/claude-driven-persona/output/
 examples/remotion-teaser/node_modules/
 examples/remotion-teaser/out/
 examples/remotion-teaser/.remotion/
+
+# Secrets — never commit. Use env vars or secret managers.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+gha-*-credentials.json
+.aws/
+.gcp/
+gcloud-key*.json
+firebase-adminsdk*.json
+# Anything matching a common token prefix
+sk-ant-*
+sk-proj-*
+ya29.*

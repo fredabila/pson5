@@ -36,6 +36,7 @@ import {
   resolveStoreRoot,
   validateProfile
 } from "@pson5/serialization-engine";
+import { PsonError } from "@pson5/core-types";
 import { simulateStoredProfile } from "@pson5/simulation-engine";
 import { getActiveStateSnapshot } from "@pson5/state-engine";
 
@@ -279,17 +280,55 @@ function jsonRpcError(
   };
 }
 
-async function readJson(request: import("node:http").IncomingMessage): Promise<unknown> {
+// Cap request body size to prevent DoS via large uploads. Overridable via
+// PSON_MAX_REQUEST_BYTES in the environment (min 1KB, max 50MB).
+const DEFAULT_MAX_REQUEST_BYTES = 1 * 1024 * 1024; // 1 MB
+
+function resolveMaxRequestBytes(): number {
+  const raw = process.env.PSON_MAX_REQUEST_BYTES;
+  if (!raw) return DEFAULT_MAX_REQUEST_BYTES;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1024) return DEFAULT_MAX_REQUEST_BYTES;
+  return Math.min(parsed, 50 * 1024 * 1024);
+}
+
+const MAX_REQUEST_BYTES = resolveMaxRequestBytes();
+
+async function readJson(
+  request: import("node:http").IncomingMessage,
+  options: { maxBytes?: number } = {}
+): Promise<unknown> {
+  const maxBytes = options.maxBytes ?? MAX_REQUEST_BYTES;
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buf.length;
+    if (total > maxBytes) {
+      // Drain the rest so the client doesn't hang, then throw.
+      request.destroy();
+      throw errorJson(
+        "payload_too_large",
+        `Request body exceeds ${maxBytes} bytes (set PSON_MAX_REQUEST_BYTES to raise).`,
+        413
+      );
+    }
+    chunks.push(buf);
   }
 
   if (chunks.length === 0) {
     return {};
   }
 
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (err) {
+    throw errorJson(
+      "invalid_json",
+      err instanceof Error ? err.message : "Request body is not valid JSON.",
+      400
+    );
+  }
 }
 
 function getUrl(requestUrl: string): URL {
@@ -1543,6 +1582,28 @@ const server = createServer(async (request, response) => {
       }
 
       if (body.method === "ping") {
+        // Auth even the ping — otherwise an unauthenticated caller can probe
+        // the server and confirm it exists, which is a trivial fingerprint
+        // useful for reconnaissance.
+        const authorization = authorizeCaller(caller, {
+          requiredRole: "viewer",
+          requiredScopes: ["system:read"],
+          operation: "mcp-ping"
+        });
+        if (!authorization.ok) {
+          await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+            operation: "mcp-ping",
+            tenant_id: requestTenantId,
+            caller_id: caller.callerId,
+            subject_user_id: caller.subjectUserId,
+            caller_role: caller.role,
+            caller_scopes: [...caller.scopes],
+            required_role: "viewer",
+            required_scopes: ["system:read"]
+          });
+          writePayload(response, jsonRpcError(id, -32001, "Unauthorized.", authorization.payload));
+          return;
+        }
         writePayload(response, jsonRpcResult(id, {}));
         return;
       }
@@ -2754,7 +2815,31 @@ const server = createServer(async (request, response) => {
     }
 
     if (error instanceof ProfileStoreError) {
-      const statusCode = error.code === "profile_not_found" ? 404 : error.code === "conflict" ? 409 : 400;
+      const statusCode =
+        error.storeCode === "profile_not_found"
+          ? 404
+          : error.storeCode === "conflict"
+            ? 409
+            : 400;
+      writePayload(response, errorJson(error.storeCode, error.message, statusCode));
+      return;
+    }
+
+    if (error instanceof PsonError) {
+      const statusCode =
+        error.code === "not_found"
+          ? 404
+          : error.code === "conflict"
+            ? 409
+            : error.code === "unauthorized"
+              ? 401
+              : error.code === "forbidden"
+                ? 403
+                : error.code === "payload_too_large"
+                  ? 413
+                  : error.code === "validation_error"
+                    ? 400
+                    : 500;
       writePayload(response, errorJson(error.code, error.message, statusCode));
       return;
     }
@@ -2766,7 +2851,70 @@ const server = createServer(async (request, response) => {
   }
 });
 
+// --- startup safety ----------------------------------------------------
+//
+// A hand-rolled HTTP server that defaults to permissive auth is a liability.
+// Refuse to bind to a non-loopback interface when none of the three auth
+// mechanisms is configured. Operators can opt out with
+// PSON_ALLOW_UNAUTHED_BIND=true for deliberate local-network tests.
+//
+// Exit code 78 (EX_CONFIG from sysexits.h) — "configuration error".
+
+const bindHost = process.env.HOST?.trim() || "0.0.0.0";
+const isLoopback =
+  bindHost === "127.0.0.1" ||
+  bindHost === "localhost" ||
+  bindHost === "::1" ||
+  bindHost === "::ffff:127.0.0.1";
+
+const hasAnyAuth = Boolean(
+  configuredApiKey ||
+    jwtSecret ||
+    jwtPublicKey ||
+    jwtJwksJson ||
+    jwtJwksPath ||
+    jwtJwksUrl
+);
+
+const allowUnauthedBind = process.env.PSON_ALLOW_UNAUTHED_BIND === "true";
+
+if (!isLoopback && !hasAnyAuth && !allowUnauthedBind) {
+  console.error(
+    [
+      "",
+      "Refusing to start: PSON5 API is binding to a non-loopback address",
+      `(HOST=${bindHost}) with no auth configured.`,
+      "",
+      "Set ONE of the following:",
+      "  PSON_API_KEY=...                    (simple shared-secret auth)",
+      "  PSON_JWT_SECRET=...                 (HS256 JWT)",
+      "  PSON_JWT_PUBLIC_KEY=... / PSON_JWKS_URL=...   (asymmetric JWT)",
+      "",
+      "Or for deliberate local-network testing, explicitly set:",
+      "  PSON_ALLOW_UNAUTHED_BIND=true",
+      "",
+      "See docs/usage/agent-auth.md for the full auth model.",
+      ""
+    ].join("\n")
+  );
+  process.exit(78);
+}
+
+if (!hasAnyAuth) {
+  console.warn(
+    `[pson5] no auth configured; listening on loopback only. ` +
+      `Set PSON_API_KEY or PSON_JWT_* before exposing this API.`
+  );
+}
+
 server.listen(port, () => {
   const location = storeRuntime.storeRoot ? ` using store ${storeRuntime.storeRoot}` : "";
-  console.log(`PSON5 API listening on http://localhost:${port} with backend ${storeRuntime.backend}${location}`);
+  const authLabel = hasAnyAuth
+    ? configuredApiKey
+      ? "api-key auth"
+      : "signed-identity auth"
+    : "no auth (loopback only)";
+  console.log(
+    `PSON5 API listening on http://${bindHost}:${port} with backend ${storeRuntime.backend}${location} · ${authLabel}`
+  );
 });
