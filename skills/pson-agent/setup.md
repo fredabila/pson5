@@ -1,0 +1,246 @@
+# Setup — zero to running PSON5
+
+> **Goal:** after this file, you've cloned PSON5, built it, created your first profile, and (optionally) seen Claude drive an end-to-end personalization loop with a live graph visualization. You will not have to write any application code.
+
+## 0. Prerequisites
+
+- **Node.js 20 or newer** · check with `node --version`
+- **npm** (ships with Node)
+- **git**
+- *(optional)* an **Anthropic** or **OpenAI** API key — PSON5 works without one, a provider just adds adaptive question rewriting + AI-augmented modeling and simulation
+- *(optional)* **Docker Desktop** if you want a local Neo4j graph mirror
+
+You do not need TypeScript installed — the repo builds itself.
+
+## 1. Install
+
+```bash
+git clone https://github.com/pson5/pson5.git
+cd pson5
+npm install
+npm run build
+```
+
+This builds every workspace package into its `dist/` directory, compiles the CLI binary, and renders the web assets. Takes 1–3 minutes the first time.
+
+Verify:
+
+```bash
+node apps/cli/dist/apps/cli/src/index.js --version
+# → 0.1.0
+```
+
+## 2. Create your first profile — no provider required
+
+PSON5 is fully functional without a model. Every engine has a rule-based fallback.
+
+```bash
+node apps/cli/dist/apps/cli/src/index.js init demo_user --store .pson5-store --json
+# → { "success": true, "data": { "profile_id": "pson_...", "revision": 1, ... } }
+```
+
+Inspect it:
+
+```bash
+node apps/cli/dist/apps/cli/src/index.js inspect pson_... --store .pson5-store
+```
+
+That's a complete `.pson` profile on disk. The observed / inferred / simulated layers are empty — you haven't collected anything yet.
+
+## 3. Configure a provider (optional, but opens up the good stuff)
+
+Pick one. PSON5 resolves config from env vars first, then from `<store>/config/provider.json`.
+
+### 3a. Claude (recommended for the demos below)
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+export PSON_AI_PROVIDER=anthropic
+export PSON_AI_MODEL=claude-haiku-4-5-20251001   # fast + cheap
+# export PSON_AI_MODEL=claude-sonnet-4-6         # balanced
+```
+
+### 3b. OpenAI
+
+```bash
+export OPENAI_API_KEY=sk-...
+export PSON_AI_PROVIDER=openai
+export PSON_AI_MODEL=gpt-4.1-mini
+```
+
+### 3c. Anything OpenAI-compatible (Ollama local, vLLM, Groq, Together, OpenRouter, LiteLLM, Azure OpenAI…)
+
+```bash
+export PSON_AI_PROVIDER=openai-compatible
+export PSON_AI_BASE_URL=http://localhost:11434/v1   # Ollama
+export PSON_AI_MODEL=llama3.1
+# export PSON_AI_API_KEY=...                        # if the endpoint requires one
+```
+
+Verify the provider is wired up:
+
+```bash
+node apps/cli/dist/apps/cli/src/index.js provider-status --json
+# → { "success": true, "data": { "configured": true, "provider": "anthropic", ... } }
+```
+
+## 4. Run the Claude-driven demo (the full picture)
+
+This is the flagship example. PSON5 starts with **no pre-registered questions**. A domain brief and a synthetic user persona are the only inputs; Claude invents every question and a second Claude loop answers them in character.
+
+```bash
+node examples/claude-driven-persona/run.mjs
+```
+
+About 3–5 minutes to complete. When it finishes, you have:
+
+| File | What it is |
+| --- | --- |
+| `examples/claude-driven-persona/output/profile.json` | The full `.pson` export |
+| `examples/claude-driven-persona/output/transcript.json` | Every question, answer, rationale, revision |
+| `examples/claude-driven-persona/output/graph.html` | **Open in any browser** — interactive D3 graph viewer |
+| `examples/claude-driven-persona/output/graph.cypher` | Ready-to-paste statements for Neo4j Browser |
+
+**Open `graph.html` in a browser right now** — that's your personalization data, visually.
+
+## 5. (Optional) Neo4j mirror
+
+The `.pson` profile is always the source of truth. Neo4j is an optional mirror for cross-profile queries, visual exploration, or downstream graph tooling. Three paths:
+
+### 5a. Local Docker — one command
+
+```bash
+# macOS / Linux / Git Bash / WSL
+./scripts/neo4j-up.sh
+
+# Windows PowerShell
+.\scripts\neo4j-up.ps1
+```
+
+The script starts Neo4j 5 on ports 7474 (browser) and 7687 (bolt), writes `<store>/config/neo4j.json` for you, and prints the login info. When it's running:
+
+```bash
+node scripts/sync-profile-to-neo4j.mjs examples/claude-driven-persona/output/profile.json
+# → syncs the profile into Neo4j in one transaction
+
+# Then open http://localhost:7474 and run:
+#   MATCH (p:PsonProfile)-[:HAS_NODE]->(n)-[r:PSON_EDGE]->(m) RETURN p, n, r, m;
+```
+
+Stop it:
+
+```bash
+docker compose -f scripts/docker-compose.neo4j.yml down
+```
+
+### 5b. Aura (free cloud)
+
+[neo4j.com/cloud/aura-free](https://neo4j.com/cloud/aura-free) — sign up, create an AuraDB Free instance, save the password (shown once), grab the Bolt URI. Then:
+
+```bash
+export PSON_NEO4J_URI="neo4j+s://<id>.databases.neo4j.io"
+export PSON_NEO4J_USERNAME=neo4j
+export PSON_NEO4J_PASSWORD="<your-password>"
+
+node scripts/sync-profile-to-neo4j.mjs examples/claude-driven-persona/output/profile.json
+```
+
+### 5c. No infra — keep using `graph.html`
+
+The HTML viewer generated by the demo does everything you'd usually open Neo4j Browser for. If you're not going to run cross-profile Cypher, you don't need Neo4j at all.
+
+Full walkthrough with troubleshooting: [docs/usage/neo4j-setup.md](https://github.com/pson5/pson5/blob/main/docs/usage/neo4j-setup.md).
+
+## 6. Run the HTTP API (for remote agents)
+
+```bash
+export PSON_STORE_BACKEND=file
+export PSON_STORE_DIR=.pson5-store
+export PORT=3015
+npm run dev:api
+```
+
+Confirm:
+
+```bash
+curl -s http://localhost:3015/health | head
+```
+
+All 21 routes are documented in [docs/api/api-contract.md](https://github.com/pson5/pson5/blob/main/docs/api/api-contract.md) with auth, scopes, and response shapes.
+
+## 7. Run the MCP server (for agent frameworks)
+
+Two transports, same executor:
+
+```bash
+# Over stdio (framework connects via pipes)
+node apps/cli/dist/apps/cli/src/index.js mcp-stdio --store .pson5-store
+
+# Over HTTP (already running inside the API — POST /v1/mcp)
+```
+
+The seven PSON5 tools are available via both. See [reference/transports.md](reference/transports.md).
+
+## 8. Run the interactive console
+
+```bash
+node apps/cli/dist/apps/cli/src/index.js console --store .pson5-store
+```
+
+An Ink/React interactive dashboard in your terminal — slash commands (`/help`, `/load`, `/simulate`, `/agent-context`, `/neo4j-sync`, …), live state, and an activity feed.
+
+## 9. Run the web dashboard
+
+```bash
+cd apps/web
+API_ORIGIN=http://localhost:3015 PORT=4173 node server.mjs
+```
+
+Visit `http://localhost:4173` — the dark-editorial landing page. Then `/access` → `/console` for the operational dashboard with all 11 panels (profile snapshot, current question, session intelligence, provider control, export, simulation, agent context, observed / inferred / state / privacy / graph / explain tabs).
+
+## You're done
+
+At this point you have:
+
+- PSON5 built and runnable
+- A provider wired up (or confirmed it works without one)
+- A real profile produced by a Claude-driven demo across 10 domain areas
+- A visual graph of the knowledge it produced
+- (Optional) a Neo4j mirror for deeper analysis
+- The HTTP API, MCP server, CLI, and web dashboard all running
+
+From here:
+
+- Read [SKILL.md](SKILL.md) for the behavioral contract you should follow when using PSON5 from an agent.
+- Read [reference/tools.md](reference/tools.md) for the seven tools.
+- Read [reference/domain-briefs.md](reference/domain-briefs.md) when you want PSON5 to learn a new topic.
+- Browse [github.com/pson5/pson5/tree/main/examples](https://github.com/pson5/pson5/tree/main/examples) for more demos.
+
+## Troubleshooting
+
+**`npm install` fails on native dependency**  
+Node 20+. If you have Node 18, install nvm and upgrade.
+
+**`node --version` shows v18 but I need 20**  
+```bash
+nvm install 20 && nvm use 20 && node --version
+```
+
+**"Provider is not configured"**  
+Check `node apps/cli/dist/apps/cli/src/index.js provider-status --json`. Either your env var is wrong, or `<store>/config/provider.json` has stale data. Run `provider-clear` and start fresh.
+
+**Claude modeling calls time out**  
+Default timeout is 20s. Bump it:
+```bash
+export PSON_AI_TIMEOUT_MS=60000
+```
+
+**"Response parse failure" on Anthropic**  
+The modeling schema occasionally emits 2k+ response tokens. The adapter's `max_tokens` is already tuned to 4000 for that reason; if you see this on another provider, raise the equivalent setting.
+
+**Neo4j won't start**  
+`docker compose -f scripts/docker-compose.neo4j.yml logs` shows what's happening. Slow machines sometimes need the full 2-minute health-check window; re-running the script will pick up where it left off.
+
+**Something else**  
+- Full troubleshooting in [docs/usage/neo4j-setup.md](https://github.com/pson5/pson5/blob/main/docs/usage/neo4j-setup.md).
+- File an issue at [github.com/pson5/pson5/issues](https://github.com/pson5/pson5/issues).
