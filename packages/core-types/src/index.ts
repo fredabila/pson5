@@ -142,11 +142,7 @@ export interface PsonProfile {
     learning_style: Record<string, unknown>;
     processing_patterns: Record<string, unknown>;
   };
-  behavioral_model: {
-    decision_functions: unknown[];
-    action_patterns: unknown[];
-    motivation_model: Record<string, unknown>;
-  };
+  behavioral_model: BehavioralModel;
   state_model: {
     states: StateDefinition[];
     transitions: StateTransition[];
@@ -264,6 +260,37 @@ export interface HeuristicRecord {
   when: Record<string, unknown>;
   outcome: string;
   confidence: ConfidenceRecord;
+}
+
+/**
+ * Structured behavioural model. Previously had loose `unknown[]` fields —
+ * they're now typed against the concrete records the modeling engine writes,
+ * while leaving `motivation_model` open-ended so domain modules can extend it.
+ */
+export interface BehavioralModel {
+  /** Rule-style heuristics derived from observed answers. */
+  decision_functions: HeuristicRecord[];
+  /** Recurring action or task-start patterns extracted from observed facts. */
+  action_patterns: InferredTraitRecord[];
+  /** Motivation profile. Known keys are typed; custom keys are `unknown`. */
+  motivation_model: MotivationModel;
+}
+
+/**
+ * Extensible motivation model. Well-known keys are documented below but
+ * stored as `unknown` — trait values originate from user answers and aren't
+ * guaranteed to narrow to a fixed string union at the type level. Validation
+ * at read sites is the caller's responsibility (see @pson5/schemas for
+ * runtime validation helpers).
+ */
+export interface MotivationModel {
+  /**
+   * How strongly a deadline changes behaviour. Conventionally one of
+   * `"none" | "mild" | "strong"` or null. Narrow at read.
+   */
+  deadline_effect?: unknown;
+  /** Any additional domain-specific motivation signals. */
+  [key: string]: unknown;
 }
 
 export interface LearnRequest {
@@ -486,4 +513,134 @@ export interface ValidationResult<T> {
   success: boolean;
   issues: ValidationIssue[];
   value?: T;
+}
+
+// ─── Error hierarchy ─────────────────────────────────────────────────────
+//
+// Every PSON5 package throws errors that extend `PsonError`. Callers should
+// branch on `.code` (stable, documented) rather than regex-matching the
+// message. `details` carries structured context for audit and for rich
+// client-side error rendering.
+//
+// ProfileStoreError (in @pson5/serialization-engine) extends this hierarchy
+// for backwards compatibility — old code using `instanceof ProfileStoreError`
+// keeps working; new code can branch on the broader `instanceof PsonError`.
+
+export type PsonErrorCode =
+  | "validation_error"
+  | "not_found"
+  | "conflict"
+  | "unauthorized"
+  | "forbidden"
+  | "payload_too_large"
+  | "provider_error"
+  | "policy_violation"
+  | "invariant_violation"
+  | "internal_error";
+
+/** Base class for every error thrown by `@pson5/*` packages. */
+export class PsonError extends Error {
+  public readonly code: PsonErrorCode;
+  public readonly details?: Readonly<Record<string, unknown>>;
+
+  constructor(
+    code: PsonErrorCode,
+    message: string,
+    details?: Readonly<Record<string, unknown>>
+  ) {
+    super(message);
+    this.name = "PsonError";
+    this.code = code;
+    this.details = details;
+  }
+}
+
+/** Thrown when input fails schema or invariant validation. */
+export class PsonValidationError extends PsonError {
+  public readonly issues: ValidationIssue[];
+  constructor(message: string, issues: ValidationIssue[] = [], details?: Readonly<Record<string, unknown>>) {
+    super("validation_error", message, details);
+    this.name = "PsonValidationError";
+    this.issues = issues;
+  }
+}
+
+/** Thrown when a profile / domain / question / session id does not exist. */
+export class PsonNotFoundError extends PsonError {
+  constructor(message: string, details?: Readonly<Record<string, unknown>>) {
+    super("not_found", message, details);
+    this.name = "PsonNotFoundError";
+  }
+}
+
+/** Thrown on write conflicts (stale revision, duplicate key, etc.). */
+export class PsonConflictError extends PsonError {
+  constructor(message: string, details?: Readonly<Record<string, unknown>>) {
+    super("conflict", message, details);
+    this.name = "PsonConflictError";
+  }
+}
+
+/** Thrown when the caller is not authenticated. */
+export class PsonUnauthorizedError extends PsonError {
+  constructor(message: string, details?: Readonly<Record<string, unknown>>) {
+    super("unauthorized", message, details);
+    this.name = "PsonUnauthorizedError";
+  }
+}
+
+/** Thrown when the caller is authenticated but lacks required role/scope. */
+export class PsonForbiddenError extends PsonError {
+  constructor(message: string, details?: Readonly<Record<string, unknown>>) {
+    super("forbidden", message, details);
+    this.name = "PsonForbiddenError";
+  }
+}
+
+/** Thrown when a provider (OpenAI/Anthropic/custom) call fails after retries. */
+export class PsonProviderError extends PsonError {
+  constructor(message: string, details?: Readonly<Record<string, unknown>>) {
+    super("provider_error", message, details);
+    this.name = "PsonProviderError";
+  }
+}
+
+/**
+ * Thrown when a layer-separation or consent invariant would be violated —
+ * e.g. an attempt to write simulation output into the observed layer.
+ * These are never expected in correct callers; treat as programmer errors.
+ */
+export class PsonInvariantViolation extends PsonError {
+  constructor(message: string, details?: Readonly<Record<string, unknown>>) {
+    super("invariant_violation", message, details);
+    this.name = "PsonInvariantViolation";
+  }
+}
+
+/**
+ * Convert a `PsonError` into a stable JSON-serialisable shape suitable for
+ * the HTTP API error envelope.
+ */
+export function serializePsonError(
+  err: unknown
+): { code: PsonErrorCode; message: string; details?: Record<string, unknown>; issues?: ValidationIssue[] } {
+  if (err instanceof PsonValidationError) {
+    return {
+      code: err.code,
+      message: err.message,
+      details: err.details ? { ...err.details } : undefined,
+      issues: err.issues
+    };
+  }
+  if (err instanceof PsonError) {
+    return {
+      code: err.code,
+      message: err.message,
+      details: err.details ? { ...err.details } : undefined
+    };
+  }
+  return {
+    code: "internal_error",
+    message: err instanceof Error ? err.message : "Unknown error."
+  };
 }

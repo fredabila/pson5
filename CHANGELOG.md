@@ -2,6 +2,40 @@
 
 All notable changes to PSON5 will be documented in this file.
 
+## Unreleased
+
+### Security
+
+- **API request-body size cap.** `apps/api` now enforces a configurable body-size limit (default 1 MB, max 50 MB via `PSON_MAX_REQUEST_BYTES`) and returns `413 payload_too_large` with a structured error instead of accumulating unbounded memory. Invalid JSON now returns `400 invalid_json`.
+- **MCP `ping` is now authenticated.** `POST /v1/mcp { method: "ping" }` was previously reachable without a caller check; it now requires the same `system:read` scope as the rest of the MCP surface and emits an audit record on denial.
+- **Stored credentials are written with `0600` permissions** on POSIX systems (`@pson5/neo4j-store`, `@pson5/provider-engine`). Silent no-op on Windows where POSIX modes don't apply — rely on platform ACLs there.
+- **API refuses to bind to a non-loopback address without auth configured.** Set `PSON_API_KEY`, `PSON_JWT_SECRET`, `PSON_JWT_PUBLIC_KEY`, or `PSON_JWKS_URL` — or opt out explicitly with `PSON_ALLOW_UNAUTHED_BIND=true` for deliberate local-network tests. Exits with code 78 (`EX_CONFIG`) on misconfiguration.
+- **`.gitignore` expanded with secret patterns** (`.env*`, `*.key`, `*.pem`, `credentials.json`, `service-account*.json`, `sk-ant-*`, etc.) to protect against accidental credential commits.
+
+### API
+
+- **New `PsonError` hierarchy in `@pson5/core-types`.** Base class plus `PsonValidationError`, `PsonNotFoundError`, `PsonConflictError`, `PsonUnauthorizedError`, `PsonForbiddenError`, `PsonProviderError`, `PsonInvariantViolation`. Every error carries a stable `.code` (of type `PsonErrorCode`) and optional `.details`. `serializePsonError(err)` turns any error into the HTTP error-envelope shape. `ProfileStoreError` (in `@pson5/serialization-engine`) now extends `PsonError` — old `err.code === "profile_not_found"` checks move to `err.storeCode`; broader `instanceof PsonError` tests are preferred for new code.
+- **Behavioural model types tightened in `@pson5/core-types`.** `PsonProfile.behavioral_model` is now `BehavioralModel` with `decision_functions: HeuristicRecord[]`, `action_patterns: InferredTraitRecord[]`, and `motivation_model: MotivationModel` (extensible via index signature). Previously all three were `unknown[]` / `Record<string, unknown>`. This is an additive refinement — existing callers continue to work.
+
+### Release hygiene
+
+- **CI now runs every integration test.** Previous workflow silently skipped `test:core-flow`, `test:provider-retry`, and `test:cli-json`. Now matrix-tested on Node 20 and Node 22.
+- **Publish workflow includes `@pson5/neo4j-store`** (previously missing, which would have broken SDK installs after next publish). Packages ship in dependency order, use `--provenance`, and auth via OIDC `id-token: write` with the classic `NPM_TOKEN` preserved as a fallback.
+- **Permissions scoped on every workflow** (`permissions: contents: read` on CI; explicit `id-token: write` on publish).
+
+### Documentation
+
+- Top-level README now reflects v0.2.0 and the single-landing-page surface — removed stale `/access → /console` navigation references.
+- `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md` — removed Windows absolute paths that leaked from an authoring environment; all internal links are now relative.
+- Three sparse package READMEs rewritten with end-to-end examples: `@pson5/neo4j-store`, `@pson5/postgres-store`, `@pson5/provider-engine`.
+
+### Planned for v0.3 (breaking)
+
+These are intentionally deferred because they change the public API surface and deserve their own release:
+
+- **Uniform async SDK surface.** Some `@pson5/sdk` methods are currently sync (`getQuestionRegistry`, `getNeo4jConfig`) while their counterparts are async. v0.3 will make every I/O method async by default and expose explicit `*Sync` variants only where they make sense.
+- **Consistent HTTP response envelope.** Most routes return `{ data, meta }`; a few routes return bare objects. v0.3 will normalise every route to the envelope under a `/v2/` prefix, keeping `/v1/` stable for a deprecation window.
+
 ## 0.2.0 - 2026-04-23
 
 - **Landing page redesign.** Replaced the console/access surfaces with a single focused landing page. Full package inventory with npm + GitHub links, three-lane hero visual, pipeline, agent-integration example, principles grid, and a dark-editorial aesthetic shared with the teaser.

@@ -9,6 +9,7 @@ import type {
   PsonProfile,
   ValidationResult
 } from "@pson5/core-types";
+import { PsonError } from "@pson5/core-types";
 import { redactProfileForExport } from "@pson5/privacy";
 import { validatePsonProfile } from "@pson5/schemas";
 
@@ -38,6 +39,11 @@ export interface RevisionAuditRecord {
 
 type ProfileStoreErrorCode = "profile_not_found" | "conflict" | "validation_error";
 
+// Map the narrow store codes to the broader PsonError codes.
+function mapProfileStoreCode(code: ProfileStoreErrorCode): "not_found" | "conflict" | "validation_error" {
+  return code === "profile_not_found" ? "not_found" : code;
+}
+
 export interface UserProfileIndexRecord {
   user_id: string;
   latest_profile_id: string;
@@ -55,12 +61,21 @@ export interface DocumentProfileStoreRepository {
   writeUserProfileIndex(record: UserProfileIndexRecord): Promise<void>;
 }
 
-export class ProfileStoreError extends Error {
-  public readonly code: ProfileStoreErrorCode;
+/**
+ * Legacy error type preserved for backwards compatibility. New code should
+ * prefer `instanceof PsonError` — ProfileStoreError now extends it, so old
+ * `err instanceof ProfileStoreError` checks keep working.
+ *
+ * Narrowing on the local `storeCode` property is still useful when callers
+ * need to distinguish `profile_not_found` from other `not_found` flavours.
+ */
+export class ProfileStoreError extends PsonError {
+  /** The narrow, store-specific code (e.g., "profile_not_found"). */
+  public readonly storeCode: ProfileStoreErrorCode;
 
   public constructor(code: ProfileStoreErrorCode, message: string) {
-    super(message);
-    this.code = code;
+    super(mapProfileStoreCode(code), message, { store_code: code });
+    this.storeCode = code;
     this.name = "ProfileStoreError";
   }
 }
@@ -639,7 +654,7 @@ export async function saveProfile(profile: PsonProfile, options?: ProfileStoreOp
   try {
     previous = await getProfileStoreAdapter(options).loadProfile(profile.profile_id, options);
   } catch (error) {
-    if (!(error instanceof ProfileStoreError && error.code === "profile_not_found")) {
+    if (!(error instanceof ProfileStoreError && error.storeCode === "profile_not_found")) {
       throw error;
     }
   }
