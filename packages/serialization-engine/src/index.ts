@@ -19,6 +19,22 @@ const INDEXES_DIRNAME = "indexes";
 const USERS_INDEX_DIRNAME = "users";
 const CURRENT_PROFILE_FILENAME = "current.json";
 const REVISIONS_DIRNAME = "revisions";
+const AUDIT_DIRNAME = "audit";
+const REVISION_AUDIT_FILENAME = "revisions.jsonl";
+
+export interface RevisionAuditRecord {
+  timestamp: string;
+  profile_id: string;
+  user_id: string;
+  tenant_id?: string | null;
+  revision: number;
+  previous_revision: number | null;
+  source_count: number;
+  source_count_delta: number;
+  updated_at: string;
+  changed_top_level_paths: string[];
+  pson_version: string;
+}
 
 type ProfileStoreErrorCode = "profile_not_found" | "conflict" | "validation_error";
 
@@ -532,8 +548,127 @@ export async function profileExists(profileId: string, options?: ProfileStoreOpt
   return getProfileStoreAdapter(options).profileExists(profileId, options);
 }
 
+const TOP_LEVEL_AUDIT_KEYS: Array<keyof PsonProfile> = [
+  "consent",
+  "domains",
+  "layers",
+  "cognitive_model",
+  "behavioral_model",
+  "state_model",
+  "knowledge_graph",
+  "simulation_profiles",
+  "privacy",
+  "metadata"
+];
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+    left.localeCompare(right)
+  );
+  return `{${entries
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`)
+    .join(",")}}`;
+}
+
+function diffTopLevelPaths(previous: PsonProfile | null, next: PsonProfile): string[] {
+  const changed: string[] = [];
+  for (const key of TOP_LEVEL_AUDIT_KEYS) {
+    if (!previous) {
+      changed.push(String(key));
+      continue;
+    }
+    if (stableStringify(previous[key]) !== stableStringify(next[key])) {
+      changed.push(String(key));
+    }
+  }
+  return changed;
+}
+
+async function appendRevisionAuditRecord(
+  record: RevisionAuditRecord,
+  options?: ProfileStoreOptions
+): Promise<void> {
+  const rootDir = resolveStoreRoot(options);
+  const auditDir = path.join(rootDir, AUDIT_DIRNAME);
+  const auditPath = path.join(auditDir, REVISION_AUDIT_FILENAME);
+  await mkdir(auditDir, { recursive: true });
+  await writeFile(auditPath, `${JSON.stringify(record)}\n`, { encoding: "utf8", flag: "a" });
+}
+
+export async function readRevisionAuditRecords(
+  options?: ProfileStoreOptions & { profile_id?: string }
+): Promise<RevisionAuditRecord[]> {
+  const rootDir = resolveStoreRoot(options);
+  const auditPath = path.join(rootDir, AUDIT_DIRNAME, REVISION_AUDIT_FILENAME);
+
+  let raw: string;
+  try {
+    raw = await readFile(auditPath, "utf8");
+  } catch {
+    return [];
+  }
+
+  const records: RevisionAuditRecord[] = [];
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) {
+      continue;
+    }
+    try {
+      const parsed = JSON.parse(trimmed) as RevisionAuditRecord;
+      if (!options?.profile_id || parsed.profile_id === options.profile_id) {
+        records.push(parsed);
+      }
+    } catch {
+      // Skip malformed lines rather than failing the whole read.
+    }
+  }
+  return records;
+}
+
 export async function saveProfile(profile: PsonProfile, options?: ProfileStoreOptions): Promise<PsonProfile> {
-  return getProfileStoreAdapter(options).saveProfile(profile, options);
+  let previous: PsonProfile | null = null;
+  try {
+    previous = await getProfileStoreAdapter(options).loadProfile(profile.profile_id, options);
+  } catch (error) {
+    if (!(error instanceof ProfileStoreError && error.code === "profile_not_found")) {
+      throw error;
+    }
+  }
+
+  const saved = await getProfileStoreAdapter(options).saveProfile(profile, options);
+
+  try {
+    await appendRevisionAuditRecord(
+      {
+        timestamp: new Date().toISOString(),
+        profile_id: saved.profile_id,
+        user_id: saved.user_id,
+        tenant_id: saved.tenant_id ?? null,
+        revision: saved.metadata.revision,
+        previous_revision: previous?.metadata.revision ?? null,
+        source_count: saved.metadata.source_count,
+        source_count_delta:
+          saved.metadata.source_count - (previous?.metadata.source_count ?? 0),
+        updated_at: saved.metadata.updated_at,
+        changed_top_level_paths: diffTopLevelPaths(previous, saved),
+        pson_version: saved.pson_version
+      },
+      options
+    );
+  } catch {
+    // Audit is best-effort; never block a successful save on audit I/O.
+  }
+
+  return saved;
 }
 
 export async function initProfile(input: InitProfileInput, options?: ProfileStoreOptions): Promise<PsonProfile> {

@@ -16,6 +16,7 @@ import {
   exportProfile,
   initProfile,
   loadProfile,
+  readRevisionAuditRecords,
   saveProfile
 } from "../../packages/serialization-engine/dist/serialization-engine/src/index.js";
 import { simulateStoredProfile } from "../../packages/simulation-engine/dist/simulation-engine/src/index.js";
@@ -241,6 +242,30 @@ async function coreFlow(storeRoot) {
 
   // Mutating and saving bumps revision on next learn
   await saveProfile(reloaded, storeOptions);
+
+  // 12) revision audit trail
+  const auditAll = await readRevisionAuditRecords(storeOptions);
+  assert.ok(auditAll.length >= 2, "audit trail must include init + at least one learn entry");
+
+  const auditForProfile = await readRevisionAuditRecords({
+    ...storeOptions,
+    profile_id: learnResult.profile.profile_id
+  });
+  assert.ok(auditForProfile.length >= 2, "audit filter by profile_id returns entries");
+
+  const firstRecord = auditForProfile[0];
+  assert.equal(firstRecord.profile_id, learnResult.profile.profile_id);
+  assert.equal(firstRecord.previous_revision, null, "first revision has no predecessor");
+  assert.equal(firstRecord.revision, 1);
+
+  const learnRecord = auditForProfile.find((record) => record.revision === learnResult.profile.metadata.revision);
+  assert.ok(learnRecord, "learn revision recorded");
+  assert.equal(learnRecord.previous_revision, 1);
+  assert.ok(
+    learnRecord.changed_top_level_paths.includes("layers"),
+    "learn revision should flag layers as changed"
+  );
+  assert.ok(learnRecord.source_count_delta >= CORE_ANSWERS.length);
 }
 
 async function main() {
