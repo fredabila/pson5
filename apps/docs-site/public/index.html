@@ -3,54 +3,69 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PSON5 Docs</title>
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#09090b" />
+    <title>PSON5 · Documentation</title>
     <meta
       name="description"
-      content="Comprehensive PSON5 documentation for the profile standard, SDK, API, CLI, storage, privacy, and open-source workflows."
+      content="Comprehensive PSON5 documentation — the .pson profile standard, engines, SDK, API, CLI, agent transports, privacy model, and storage backends."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..600,0..100&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
     />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div class="shell">
-      <aside class="sidebar">
+    <a class="skip-link" href="#page-content">Skip to content</a>
+
+    <div class="docs-shell">
+      <aside class="sidebar" aria-label="Documentation navigation">
         <a class="brand" href="#/introduction/overview">
-          <span class="brand-mark">P5</span>
-          <span>
-            <strong>PSON5</strong>
-            <small>Docs</small>
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-copy">
+            <strong>PSON<span class="italic-mark">5</span></strong>
+            <small>Documentation</small>
           </span>
         </a>
 
         <label class="search">
           <span>Search</span>
-          <input id="search-input" type="search" placeholder="Search docs, packages, routes..." />
+          <input id="search-input" type="search" placeholder="Search pages, packages, routes…" />
         </label>
 
-        <nav id="sidebar-nav" class="sidebar-nav"></nav>
+        <nav id="sidebar-nav" class="sidebar-nav" aria-label="Sections"></nav>
+
+        <footer class="sidebar-footer">
+          <a href="https://github.com/fredabila/pson5" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/fredabila/pson5/blob/main/CHANGELOG.md" target="_blank" rel="noreferrer">Changelog</a>
+          <a href="https://github.com/fredabila/pson5/blob/main/LICENSE" target="_blank" rel="noreferrer">MIT</a>
+        </footer>
       </aside>
 
       <div class="main">
         <header class="topbar">
-          <div>
-            <p class="eyebrow">Documentation</p>
+          <div class="topbar__breadcrumb">
+            <span class="eyebrow eyebrow--accent">Documentation</span>
             <h1 id="page-title">PSON5 Docs</h1>
           </div>
-          <div class="top-actions">
-            <a href="https://github.com/fredabila/pson5" target="_blank" rel="noreferrer">GitHub</a>
-            <a href="#/reference/packages">Packages</a>
-            <a href="#/deployment/open-source-readiness">Open source</a>
+          <div class="topbar__actions">
+            <a class="btn btn--ghost btn--sm" href="/" target="_self">Landing</a>
+            <a class="btn btn--primary btn--sm" href="https://github.com/fredabila/pson5" target="_blank" rel="noreferrer">GitHub</a>
           </div>
         </header>
 
         <div class="content-wrap">
           <main id="page-content" class="content"></main>
-          <aside class="toc">
-            <p class="toc-label">On this page</p>
+          <aside class="toc" aria-label="On this page">
+            <p class="toc__label">On this page</p>
             <nav id="page-toc"></nav>
           </aside>
         </div>
 
-        <footer class="pager" id="pager"></footer>
+        <nav class="pager" id="pager" aria-label="Page navigation"></nav>
       </div>
     </div>
 
