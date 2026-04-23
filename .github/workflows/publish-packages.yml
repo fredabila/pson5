@@ -2,12 +2,23 @@ name: Publish Packages
 
 on:
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (npm pack only, do not publish)"
+        type: boolean
+        default: false
+  release:
+    types: [published]
 
 jobs:
   publish:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      # id-token: write is required for npm OIDC / trusted publisher.
+      # With it, `npm publish --provenance` cryptographically ties the
+      # tarball to this exact workflow run — removes the need for a
+      # long-lived NPM_TOKEN once the @pson5 scope is linked to this repo.
       id-token: write
     steps:
       - name: Checkout
@@ -23,24 +34,47 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Validate
+      - name: Validate (type-check, build, every integration test)
         run: npm run ci
 
-      - name: Publish packages
+      - name: Publish packages (dependency order)
         env:
+          # NPM_TOKEN is the fallback for scopes not yet migrated to OIDC
+          # trusted publisher. Once the @pson5 scope is linked to this repo
+          # in npm settings, the token can be removed and --provenance
+          # alone will authenticate.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          npm publish --access public --workspace @pson5/core-types
-          npm publish --access public --workspace @pson5/schemas
-          npm publish --access public --workspace @pson5/privacy
-          npm publish --access public --workspace @pson5/serialization-engine
-          npm publish --access public --workspace @pson5/provider-engine
-          npm publish --access public --workspace @pson5/modeling-engine
-          npm publish --access public --workspace @pson5/state-engine
-          npm publish --access public --workspace @pson5/graph-engine
-          npm publish --access public --workspace @pson5/simulation-engine
-          npm publish --access public --workspace @pson5/acquisition-engine
-          npm publish --access public --workspace @pson5/agent-context
-          npm publish --access public --workspace @pson5/sdk
-          npm publish --access public --workspace @pson5/postgres-store
-          npm publish --access public --workspace @pson5/cli
+          set -euo pipefail
+          PUBLISH_FLAGS="--access public --provenance"
+          if [ "${DRY_RUN:-false}" = "true" ]; then
+            PUBLISH_FLAGS="--access public --dry-run"
+          fi
+
+          # Foundation — no @pson5/* deps.
+          npm publish $PUBLISH_FLAGS --workspace @pson5/core-types
+          npm publish $PUBLISH_FLAGS --workspace @pson5/schemas
+          npm publish $PUBLISH_FLAGS --workspace @pson5/privacy
+
+          # Engines — depend on foundation.
+          npm publish $PUBLISH_FLAGS --workspace @pson5/state-engine
+          npm publish $PUBLISH_FLAGS --workspace @pson5/graph-engine
+          npm publish $PUBLISH_FLAGS --workspace @pson5/modeling-engine
+          npm publish $PUBLISH_FLAGS --workspace @pson5/provider-engine
+          npm publish $PUBLISH_FLAGS --workspace @pson5/serialization-engine
+          npm publish $PUBLISH_FLAGS --workspace @pson5/simulation-engine
+
+          # Storage adapters — depend on core-types + serialization-engine.
+          npm publish $PUBLISH_FLAGS --workspace @pson5/postgres-store
+          npm publish $PUBLISH_FLAGS --workspace @pson5/neo4j-store
+
+          # Integration — depend on multiple engines.
+          npm publish $PUBLISH_FLAGS --workspace @pson5/agent-context
+          npm publish $PUBLISH_FLAGS --workspace @pson5/acquisition-engine
+
+          # Surface — depends on everything under it.
+          npm publish $PUBLISH_FLAGS --workspace @pson5/sdk
+
+          # Apps.
+          npm publish $PUBLISH_FLAGS --workspace @pson5/cli
