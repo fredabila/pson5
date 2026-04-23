@@ -9,7 +9,8 @@ const state = {
   profileId: "",
   sessionId: "",
   profile: null,
-  providerStatus: null
+  providerStatus: null,
+  lastSession: null
 };
 
 const els = {
@@ -20,6 +21,8 @@ const els = {
   currentProfile: document.querySelector("#current-profile"),
   currentSession: document.querySelector("#current-session"),
   providerBrief: document.querySelector("#provider-brief"),
+  heroHeadline: document.querySelector("#hero-headline"),
+  heroSubcopy: document.querySelector("#hero-subcopy"),
   initForm: document.querySelector("#init-form"),
   loadForm: document.querySelector("#load-form"),
   refreshProfile: document.querySelector("#refresh-profile"),
@@ -31,7 +34,9 @@ const els = {
   questionForm: document.querySelector("#question-form"),
   questionDomains: document.querySelector("#question-domains"),
   questionDepth: document.querySelector("#question-depth"),
+  questionBrief: document.querySelector("#question-brief"),
   questionOutput: document.querySelector("#question-output"),
+  sessionIntelligence: document.querySelector("#session-intelligence"),
   answerForm: document.querySelector("#answer-form"),
   answerQuestionId: document.querySelector("#answer-question-id"),
   answerValue: document.querySelector("#answer-value"),
@@ -48,6 +53,9 @@ const els = {
   simulateDomains: document.querySelector("#simulate-domains"),
   simulationBrief: document.querySelector("#simulation-brief"),
   simulationOutput: document.querySelector("#simulation-output"),
+  agentForm: document.querySelector("#agent-form"),
+  agentIntent: document.querySelector("#agent-intent"),
+  agentOutput: document.querySelector("#agent-output"),
   explainForm: document.querySelector("#explain-form"),
   predictionId: document.querySelector("#prediction-id"),
   explainOutput: document.querySelector("#explain-output"),
@@ -127,8 +135,14 @@ function syncStatusStrip() {
 function renderSummary(profile) {
   if (!profile) {
     els.summaryCards.innerHTML = "";
+    els.heroHeadline.textContent = "Load a profile to activate the dashboard.";
+    els.heroSubcopy.textContent =
+      "The dashboard will surface acquisition signals, provider policy, simulation output, and profile layers.";
     return;
   }
+
+  els.heroHeadline.textContent = `Profile ${profile.profile_id} for ${profile.user_id}`;
+  els.heroSubcopy.textContent = `Revision ${profile.metadata.revision} with ${profile.metadata.source_count} recorded sources across ${profile.domains.active.join(", ")}.`;
 
   const aiModel = profile.layers.inferred?.ai_model;
   const cards = [
@@ -152,6 +166,98 @@ function renderSummary(profile) {
       `
     )
     .join("");
+}
+
+function renderSessionIntelligence(session) {
+  state.lastSession = session ?? null;
+
+  if (!session) {
+    els.sessionIntelligence.innerHTML = "Fetch a question to inspect fatigue, confidence gaps, contradictions, and stop logic.";
+    els.sessionIntelligence.classList.add("empty");
+    return;
+  }
+
+  els.sessionIntelligence.classList.remove("empty");
+  const contradictions = session.contradiction_flags ?? [];
+  const confidenceGaps = session.confidence_gaps ?? [];
+
+  els.sessionIntelligence.innerHTML = `
+    <article class="signal-card">
+      <h3>Session status</h3>
+      <p>${session.status} session ${session.session_id}</p>
+    </article>
+    <article class="signal-card">
+      <h3>Fatigue score</h3>
+      <p>${typeof session.fatigue_score === "number" ? session.fatigue_score.toFixed(2) : "0.00"}</p>
+    </article>
+    <article class="signal-card">
+      <h3>Confidence gaps</h3>
+      <p>${confidenceGaps.length ? confidenceGaps.join(", ") : "No unresolved high-value gaps in active domains."}</p>
+    </article>
+    <article class="signal-card">
+      <h3>Contradictions</h3>
+      ${
+        contradictions.length
+          ? `<ul>${contradictions
+              .slice(-4)
+              .map(
+                (item) =>
+                  `<li><strong>${item.target}</strong>: ${String(item.previous_value)} -> ${String(item.incoming_value)}</li>`
+              )
+              .join("")}</ul>`
+          : "<p>No contradictions detected in this session.</p>"
+      }
+    </article>
+    <article class="signal-card">
+      <h3>Stop logic</h3>
+      <p>${session.stop_reason || "No stop reason triggered yet."}</p>
+    </article>
+  `;
+}
+
+function renderQuestionCard(payload) {
+  const session = payload?.session ?? null;
+  const question = payload?.questions?.[0] ?? payload?.next_questions?.[0] ?? null;
+  renderSessionIntelligence(session);
+
+  if (!question) {
+    els.questionBrief.innerHTML = "No more questions available for this session.";
+    els.questionBrief.classList.add("empty");
+    return;
+  }
+
+  els.questionBrief.classList.remove("empty");
+  const chips = [
+    question.domain,
+    question.type,
+    question.depth,
+    question.generated_by === "provider" ? "provider-routed" : "registry"
+  ]
+    .filter(Boolean)
+    .map((value) => `<span class="signal-chip">${value}</span>`)
+    .join("");
+
+  const choices =
+    question.choices?.length
+      ? `<div class="signal-card"><h3>Structured choices</h3><p>${question.choices
+          .map((choice) => `${choice.label} (${choice.value})`)
+          .join(", ")}</p></div>`
+      : "";
+
+  els.questionBrief.innerHTML = `
+    <div class="brief-meta">${chips}</div>
+    <div>
+      <h3>${question.prompt}</h3>
+      <p>${question.answer_style_hint || "Answer naturally. PSON will normalize where possible."}</p>
+    </div>
+    ${
+      question.generation_rationale
+        ? `<div class="signal-card"><h3>Why this question</h3><p>${question.generation_rationale}</p></div>`
+        : ""
+    }
+    ${question.source_question_id ? `<div class="signal-card"><h3>Underlying target</h3><p>${question.source_question_id}</p></div>` : ""}
+    ${choices}
+  `;
 }
 
 function renderGraph(graph) {
@@ -266,7 +372,7 @@ function renderSimulation(result) {
   els.simulationBrief.classList.remove("empty");
 
   const providerLabel = result.provider
-    ? `${result.provider.mode} · ${result.provider.provider} · ${result.provider.model}`
+    ? `${result.provider.mode} | ${result.provider.provider} | ${result.provider.model}`
     : "rules only";
 
   const reasoning = (result.reasoning ?? [])
@@ -483,17 +589,15 @@ els.questionForm.addEventListener("submit", async (event) => {
     body: JSON.stringify(payload)
   });
 
-  state.sessionId = result.data.session_id;
+  state.sessionId = result.data.session?.session_id || result.data.session_id;
   syncStatusStrip();
-  const question = result.data.questions[0] ?? null;
-
-  if (!question) {
-    setEmpty(els.questionOutput, "No more questions available for this session.");
-    return;
-  }
-
-  els.answerQuestionId.value = question.id;
+  renderQuestionCard(result.data);
   setPre(els.questionOutput, result.data);
+
+  const question = result.data.questions?.[0] ?? null;
+  if (question) {
+    els.answerQuestionId.value = question.id;
+  }
 });
 
 els.answerForm.addEventListener("submit", async (event) => {
@@ -523,17 +627,17 @@ els.answerForm.addEventListener("submit", async (event) => {
     body: JSON.stringify(payload)
   });
 
-  state.sessionId = result.data.session_id;
+  state.sessionId = result.data.session?.session_id || result.data.session_id;
   syncStatusStrip();
-  setPre(els.questionOutput, {
-    latest_learn_result: result.data
-  });
+  renderQuestionCard(result.data);
+  setPre(els.questionOutput, { latest_learn_result: result.data });
 
   const nextQuestion = result.data.next_questions?.[0];
   if (nextQuestion) {
     els.answerQuestionId.value = nextQuestion.id;
   }
 
+  els.answerValue.value = "";
   await loadProfile(state.profileId);
 });
 
@@ -569,6 +673,26 @@ els.simulateForm.addEventListener("submit", async (event) => {
   if (result.data.prediction) {
     els.predictionId.value = result.data.prediction;
   }
+});
+
+els.agentForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!state.profileId) {
+    setEmpty(els.agentOutput, "Load a profile before building agent context.");
+    return;
+  }
+
+  const result = await request("/v1/pson/agent-context", {
+    method: "POST",
+    body: JSON.stringify({
+      profile_id: state.profileId,
+      intent: els.agentIntent.value.trim() || "general_assistance",
+      include_predictions: true,
+      max_items: 12
+    })
+  });
+
+  setPre(els.agentOutput, result.data);
 });
 
 els.explainForm.addEventListener("submit", async (event) => {

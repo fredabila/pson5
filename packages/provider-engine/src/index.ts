@@ -661,6 +661,121 @@ function answerNormalizationSchema(): OpenAiResponseFormat {
   };
 }
 
+function consoleIntentSchema(): OpenAiResponseFormat {
+  return {
+    name: "pson_console_intent",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["action", "confidence", "rationale"],
+      properties: {
+        action: {
+          type: "string",
+          enum: [
+            "help",
+            "init_profile",
+            "load_profile",
+            "next_question",
+            "answer_question",
+            "simulate",
+            "agent_context",
+            "inspect",
+            "state",
+            "graph",
+            "provider_status",
+            "provider_policy",
+            "neo4j_status",
+            "neo4j_sync",
+            "export",
+            "explain",
+            "noop"
+          ]
+        },
+        confidence: {
+          type: "number",
+          minimum: 0,
+          maximum: 1
+        },
+        rationale: {
+          type: "string"
+        },
+        user_id: {
+          type: "string"
+        },
+        profile_id: {
+          type: "string"
+        },
+        value: {
+          type: "string"
+        },
+        intent: {
+          type: "string"
+        },
+        task_text: {
+          type: "string"
+        },
+        inspect_mode: {
+          type: "string",
+          enum: ["full", "observed", "inferred", "privacy"]
+        },
+        operation: {
+          type: "string",
+          enum: ["modeling", "simulation"]
+        },
+        prediction: {
+          type: "string"
+        },
+        redaction_level: {
+          type: "string",
+          enum: ["full", "safe"]
+        },
+        reply: {
+          type: "string"
+        }
+      }
+    }
+  };
+}
+
+function adaptiveQuestionSchema(): OpenAiResponseFormat {
+  return {
+    name: "pson_adaptive_question",
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "question_mode",
+        "selected_question_id",
+        "rewritten_prompt",
+        "answer_style_hint",
+        "rationale",
+        "stop_early"
+      ],
+      properties: {
+        question_mode: {
+          type: "string",
+          enum: ["candidate", "follow_up"]
+        },
+        selected_question_id: {
+          type: ["string", "null"]
+        },
+        rewritten_prompt: {
+          type: ["string", "null"]
+        },
+        answer_style_hint: {
+          type: ["string", "null"]
+        },
+        rationale: {
+          type: "string"
+        },
+        stop_early: {
+          type: "boolean"
+        }
+      }
+    }
+  };
+}
+
 function normalizeTraitCandidates(value: unknown): AiTraitCandidate[] {
   if (!Array.isArray(value)) {
     return [];
@@ -927,6 +1042,233 @@ export async function normalizeAnswerWithProvider(
     normalized_value: normalizedValue,
     confidence: clampConfidence(Number(raw.confidence ?? 0)),
     rationale: String(raw.rationale ?? "")
+  };
+}
+
+export async function deriveConsoleIntent(
+  input: {
+    message: string;
+    profile_id?: string;
+    session_id?: string;
+    pending_question_id?: string;
+    available_actions?: string[];
+  },
+  options?: { rootDir?: string }
+): Promise<
+  | {
+      action:
+        | "help"
+        | "init_profile"
+        | "load_profile"
+        | "next_question"
+        | "answer_question"
+        | "simulate"
+        | "agent_context"
+        | "inspect"
+        | "state"
+        | "graph"
+        | "provider_status"
+        | "provider_policy"
+        | "neo4j_status"
+        | "neo4j_sync"
+        | "export"
+        | "explain"
+        | "noop";
+      confidence: number;
+      rationale: string;
+      user_id?: string;
+      profile_id?: string;
+      value?: string;
+      intent?: string;
+      task_text?: string;
+      inspect_mode?: "full" | "observed" | "inferred" | "privacy";
+      operation?: "modeling" | "simulation";
+      prediction?: string;
+      redaction_level?: "full" | "safe";
+      reply?: string;
+    }
+  | null
+> {
+  const status = getProviderStatusFromEnv({ rootDir: options?.rootDir });
+  if (!status.configured || !status.provider || !status.model) {
+    return null;
+  }
+
+  const raw = await callProviderJson(
+    consoleIntentSchema(),
+    [
+      "You are routing natural-language terminal input into a structured PSON5 console action.",
+      "Choose the closest supported action from the schema.",
+      "Be conservative. Use noop when the request is unclear or outside the available actions.",
+      "Do not invent profile ids or sensitive data.",
+      "Keep rationale short."
+    ].join(" "),
+    {
+      task: "route_console_intent",
+      message: input.message,
+      context: {
+        profile_id: input.profile_id ?? null,
+        session_id: input.session_id ?? null,
+        pending_question_id: input.pending_question_id ?? null,
+        available_actions: input.available_actions ?? []
+      }
+    },
+    { rootDir: options?.rootDir }
+  );
+
+  if (!raw || typeof raw.action !== "string") {
+    return null;
+  }
+
+  const validActions = new Set([
+    "help",
+    "init_profile",
+    "load_profile",
+    "next_question",
+    "answer_question",
+    "simulate",
+    "agent_context",
+    "inspect",
+    "state",
+    "graph",
+    "provider_status",
+    "provider_policy",
+    "neo4j_status",
+    "neo4j_sync",
+    "export",
+    "explain",
+    "noop"
+  ]);
+
+  if (!validActions.has(raw.action)) {
+    return null;
+  }
+
+  return {
+    action: raw.action as
+      | "help"
+      | "init_profile"
+      | "load_profile"
+      | "next_question"
+      | "answer_question"
+      | "simulate"
+      | "agent_context"
+      | "inspect"
+      | "state"
+      | "graph"
+      | "provider_status"
+      | "provider_policy"
+      | "neo4j_status"
+      | "neo4j_sync"
+      | "export"
+      | "explain"
+      | "noop",
+    confidence: clampConfidence(Number(raw.confidence ?? 0)),
+    rationale: String(raw.rationale ?? ""),
+    user_id: typeof raw.user_id === "string" ? raw.user_id : undefined,
+    profile_id: typeof raw.profile_id === "string" ? raw.profile_id : undefined,
+    value: typeof raw.value === "string" ? raw.value : undefined,
+    intent: typeof raw.intent === "string" ? raw.intent : undefined,
+    task_text: typeof raw.task_text === "string" ? raw.task_text : undefined,
+    inspect_mode:
+      raw.inspect_mode === "full" ||
+      raw.inspect_mode === "observed" ||
+      raw.inspect_mode === "inferred" ||
+      raw.inspect_mode === "privacy"
+        ? raw.inspect_mode
+        : undefined,
+    operation: raw.operation === "modeling" || raw.operation === "simulation" ? raw.operation : undefined,
+    prediction: typeof raw.prediction === "string" ? raw.prediction : undefined,
+    redaction_level: raw.redaction_level === "full" || raw.redaction_level === "safe" ? raw.redaction_level : undefined,
+    reply: typeof raw.reply === "string" ? raw.reply : undefined
+  };
+}
+
+export async function deriveAdaptiveQuestion(
+  profile: PsonProfile,
+  input: {
+    candidates: QuestionDefinition[];
+    session: {
+      session_id: string;
+      domains: string[];
+      depth: string;
+      asked_question_ids: string[];
+      answered_question_ids: string[];
+      contradiction_flags: Array<{
+        target: string;
+        previous_value: unknown;
+        incoming_value: unknown;
+        question_id: string;
+        detected_at: string;
+      }>;
+      confidence_gaps: string[];
+      fatigue_score: number;
+    };
+  },
+  options?: { rootDir?: string }
+): Promise<{
+  question_mode: "candidate" | "follow_up";
+  selected_question_id: string | null;
+  rewritten_prompt: string | null;
+  answer_style_hint: string | null;
+  rationale: string;
+  stop_early: boolean;
+} | null> {
+  const policyStatus = getProviderPolicyStatus(profile, "modeling", { rootDir: options?.rootDir });
+  const status = policyStatus.provider_status;
+  if (!policyStatus.allowed || !status.provider || !status.model) {
+    return null;
+  }
+
+  if (input.candidates.length === 0) {
+    return null;
+  }
+
+  const { sanitized_profile, redacted_fields } = sanitizeProfileForProvider(profile);
+  const raw = await callProviderJson(
+    adaptiveQuestionSchema(),
+    [
+      "You are choosing the next best personalization question for an adaptive acquisition system.",
+      "Select from the provided candidate questions only.",
+      "Rewrite the selected prompt so it sounds conversational and cognitively natural.",
+      "Do not force multiple-choice wording unless necessary.",
+      "Use confidence gaps, contradiction flags, and fatigue to decide whether to probe deeper or stop early.",
+      "If contradictions exist, prefer a clarifying follow-up when a candidate can resolve them.",
+      "If the profile already has enough signal or fatigue is high relative to remaining uncertainty, you may stop early.",
+      "Be conservative and do not invent new question ids."
+    ].join(" "),
+    {
+      task: "choose_next_personalization_question",
+      policy: {
+        operation: "modeling",
+        redacted_fields
+      },
+      profile: sanitized_profile,
+      session: input.session,
+      candidates: input.candidates.map((question) => ({
+        id: question.id,
+        domain: question.domain,
+        prompt: question.prompt,
+        type: question.type,
+        depth: question.depth,
+        information_targets: question.information_targets,
+        choices: question.choices ?? []
+      }))
+    },
+    { rootDir: options?.rootDir }
+  );
+
+  if (!raw) {
+    return null;
+  }
+
+  return {
+    question_mode: raw.question_mode === "follow_up" ? "follow_up" : "candidate",
+    selected_question_id: typeof raw.selected_question_id === "string" ? raw.selected_question_id : null,
+    rewritten_prompt: typeof raw.rewritten_prompt === "string" ? raw.rewritten_prompt : null,
+    answer_style_hint: typeof raw.answer_style_hint === "string" ? raw.answer_style_hint : null,
+    rationale: String(raw.rationale ?? ""),
+    stop_early: raw.stop_early === true
   };
 }
 

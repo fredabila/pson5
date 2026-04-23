@@ -3,10 +3,19 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline, { type Completer } from "node:readline";
+import chalk from "chalk";
+import { intro, isCancel, outro, password, select, text } from "@clack/prompts";
 import { buildStoredAgentContext } from "@pson5/agent-context";
 import type { AgentContextOptions, PsonProfile, QuestionDefinition } from "@pson5/core-types";
 import { getNextQuestions, submitLearningAnswers } from "@pson5/acquisition-engine";
 import { explainPredictionSupport } from "@pson5/graph-engine";
+import {
+  clearStoredNeo4jConfig,
+  getNeo4jStatus,
+  getStoredNeo4jConfig,
+  saveNeo4jConfig,
+  syncStoredProfileKnowledgeGraph
+} from "@pson5/neo4j-store";
 import {
   clearStoredProviderConfig,
   getProviderPolicyStatus,
@@ -24,12 +33,20 @@ import {
   resolveStoreRoot,
   validateProfile
 } from "@pson5/serialization-engine";
+import {
+  createPsonAgentToolExecutor,
+  getPsonAgentToolDefinitions,
+  PsonClient,
+  type PsonAgentToolCall,
+  type PsonAgentToolName
+} from "@pson5/sdk";
 import { simulateStoredProfile } from "@pson5/simulation-engine";
 import { getActiveStateSnapshot } from "@pson5/state-engine";
 
 type RedactionLevel = "full" | "safe";
 type PsonDepth = "light" | "standard" | "deep";
 type ConsoleOperation = "modeling" | "simulation";
+type JsonRpcId = string | number | null;
 
 interface ConsoleState {
   storeRoot: string;
@@ -75,7 +92,7 @@ const MAX_ACTIVITY_ITEMS = 8;
 const MAX_VIEW_LINES = 28;
 
 function printUsage(): void {
-  console.log(`pson <command>
+  console.log(`${chalk.bold.cyan("pson <command>")}
 
 Commands:
   init <userId> [--store <dir>]      Create and persist a minimal .pson profile
@@ -90,12 +107,21 @@ Commands:
   provider-status
   provider-config [--store <dir>]    Show stored provider config summary
   provider-set <openai|anthropic> --api-key <key> [--model <name>] [--base-url <url>] [--timeout-ms <n>] [--store <dir>]
+  provider-wizard [--store <dir>]    Interactive provider setup via Clack prompts
   provider-clear [--store <dir>]     Remove stored provider config
   provider-policy <profileId> <modeling|simulation> [--store <dir>]
+  neo4j-status [--store <dir>]       Check Neo4j configuration and connectivity
+  neo4j-config [--store <dir>]       Show stored Neo4j config summary
+  neo4j-set --uri <uri> --username <user> --password <password> [--database <name>] [--disabled] [--store <dir>]
+  neo4j-wizard [--store <dir>]       Interactive Neo4j setup via Clack prompts
+  neo4j-clear [--store <dir>]        Remove stored Neo4j config
+  neo4j-sync <profileId> [--store <dir>]   Sync the profile knowledge graph into Neo4j
   graph <profileId> [--store <dir>]
   state <profileId> [--store <dir>]
   explain <profileId> <prediction> [--store <dir>]
   console [--profile <id>] [--store <dir>]  Start the interactive terminal console
+  mcp-stdio [--store <dir>]         Start the local stdio MCP server
+  console-legacy [--profile <id>] [--store <dir>]  Start the older readline console
   validate <file>                    Validate a .pson JSON file
 `);
 }
@@ -121,9 +147,284 @@ function consumeFlag(args: string[], name: string): boolean {
   return true;
 }
 
+async function runProviderWizard(storeRoot: string): Promise<void> {
+  intro(chalk.cyan("PSON5 provider setup"));
+
+  const provider = await select({
+    message: "Which model provider should PSON5 use?",
+    options: [
+      { value: "openai", label: "OpenAI", hint: "responses + structured outputs" },
+      { value: "anthropic", label: "Anthropic", hint: "messages API" }
+    ]
+  });
+
+  if (isCancel(provider)) {
+    outro("Provider setup cancelled.");
+    return;
+  }
+
+  const apiKey = await password({
+    message: "API key",
+    mask: "*",
+    validate(value = "") {
+      return value.trim().length > 0 ? undefined : "API key is required.";
+    }
+  });
+  if (isCancel(apiKey)) {
+    outro("Provider setup cancelled.");
+    return;
+  }
+
+  const model = await text({
+    message: "Model name",
+    placeholder: provider === "openai" ? "gpt-4.1-mini" : "claude-sonnet-4-20250514",
+    defaultValue: provider === "openai" ? "gpt-4.1-mini" : "claude-sonnet-4-20250514"
+  });
+  if (isCancel(model)) {
+    outro("Provider setup cancelled.");
+    return;
+  }
+
+  const saved = await saveProviderConfig(
+    {
+      provider,
+      enabled: true,
+      api_key: apiKey,
+      model: model || null
+    },
+    { rootDir: storeRoot }
+  );
+
+  outro(`Saved ${saved.provider} provider config to ${saved.path}`);
+}
+
+async function runNeo4jWizard(storeRoot: string): Promise<void> {
+  intro(chalk.cyan("PSON5 Neo4j setup"));
+
+  const uri = await text({
+    message: "Neo4j URI",
+    placeholder: "neo4j+s://example.databases.neo4j.io"
+  });
+  if (isCancel(uri)) {
+    outro("Neo4j setup cancelled.");
+    return;
+  }
+
+  const username = await text({
+    message: "Neo4j username",
+    placeholder: "neo4j",
+    defaultValue: "neo4j"
+  });
+  if (isCancel(username)) {
+    outro("Neo4j setup cancelled.");
+    return;
+  }
+
+  const secret = await password({
+    message: "Neo4j password",
+    mask: "*",
+    validate(value = "") {
+      return value.trim().length > 0 ? undefined : "Password is required.";
+    }
+  });
+  if (isCancel(secret)) {
+    outro("Neo4j setup cancelled.");
+    return;
+  }
+
+  const database = await text({
+    message: "Database name",
+    placeholder: "neo4j",
+    defaultValue: "neo4j"
+  });
+  if (isCancel(database)) {
+    outro("Neo4j setup cancelled.");
+    return;
+  }
+
+  const saved = saveNeo4jConfig(
+    {
+      uri,
+      username,
+      password: secret,
+      database: database || null,
+      enabled: true
+    },
+    { rootDir: storeRoot }
+  );
+
+  outro(`Saved Neo4j config to ${saved.path}`);
+}
+
 function tokenizeInput(input: string): string[] {
   const matches = input.match(/"([^"]*)"|'([^']*)'|\S+/g) ?? [];
   return matches.map((token) => token.replace(/^['"]|['"]$/g, ""));
+}
+
+function writeMcpMessage(payload: unknown): void {
+  const body = JSON.stringify(payload);
+  const header = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`;
+  process.stdout.write(header);
+  process.stdout.write(body);
+}
+
+function writeMcpResult(id: JsonRpcId, result: unknown): void {
+  writeMcpMessage({
+    jsonrpc: "2.0",
+    id,
+    result
+  });
+}
+
+function writeMcpError(id: JsonRpcId, code: number, message: string, data?: unknown): void {
+  writeMcpMessage({
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code,
+      message,
+      ...(data !== undefined ? { data } : {})
+    }
+  });
+}
+
+function toMcpTools() {
+  return getPsonAgentToolDefinitions().map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.input_schema
+  }));
+}
+
+async function startMcpStdioServer(storeRoot: string): Promise<void> {
+  const client = new PsonClient();
+  const executor = createPsonAgentToolExecutor(client, { rootDir: storeRoot });
+  const validToolNames = new Set(getPsonAgentToolDefinitions().map((tool) => tool.name));
+  let buffer = Buffer.alloc(0);
+
+  async function handleMessage(rawMessage: string): Promise<void> {
+    let message: { jsonrpc?: string; id?: JsonRpcId; method?: string; params?: Record<string, unknown> };
+
+    try {
+      message = JSON.parse(rawMessage) as { jsonrpc?: string; id?: JsonRpcId; method?: string; params?: Record<string, unknown> };
+    } catch {
+      writeMcpError(null, -32700, "Parse error");
+      return;
+    }
+
+    const id = message.id ?? null;
+    if (message.jsonrpc !== "2.0" || typeof message.method !== "string") {
+      writeMcpError(id, -32600, "Invalid Request");
+      return;
+    }
+
+    if (message.method === "notifications/initialized") {
+      return;
+    }
+
+    if (message.method === "initialize") {
+      writeMcpResult(id, {
+        protocolVersion: "2025-03-26",
+        capabilities: {
+          tools: {
+            listChanged: false
+          }
+        },
+        serverInfo: {
+          name: "@pson5/cli",
+          version: "0.1.0"
+        }
+      });
+      return;
+    }
+
+    if (message.method === "ping") {
+      writeMcpResult(id, {});
+      return;
+    }
+
+    if (message.method === "tools/list") {
+      writeMcpResult(id, { tools: toMcpTools() });
+      return;
+    }
+
+    if (message.method === "tools/call") {
+      const params = typeof message.params === "object" && message.params !== null ? message.params : {};
+      const name = params.name;
+      const args =
+        typeof params.arguments === "object" && params.arguments !== null && !Array.isArray(params.arguments)
+          ? (params.arguments as Record<string, unknown>)
+          : {};
+
+      if (typeof name !== "string" || !validToolNames.has(name as PsonAgentToolName)) {
+        writeMcpError(id, -32602, "Invalid tool call parameters");
+        return;
+      }
+
+      try {
+        const result = await executor.execute({
+          name: name as PsonAgentToolName,
+          arguments: args
+        } satisfies PsonAgentToolCall);
+
+        writeMcpResult(id, {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(result, null, 2)
+            }
+          ],
+          structuredContent: result
+        });
+      } catch (error) {
+        const messageText = error instanceof Error ? error.message : "Tool execution failed.";
+        writeMcpError(id, -32002, messageText);
+      }
+      return;
+    }
+
+    writeMcpError(id, -32601, `Method not found: ${message.method}`);
+  }
+
+  process.stdin.on("data", (chunk: Buffer | string) => {
+    const incoming = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    buffer = Buffer.concat([buffer, incoming]);
+
+    while (true) {
+      const headerEnd = buffer.indexOf("\r\n\r\n");
+      if (headerEnd === -1) {
+        return;
+      }
+
+      const headerText = buffer.slice(0, headerEnd).toString("utf8");
+      const headers = headerText.split("\r\n");
+      const contentLengthHeader = headers.find((line) => /^Content-Length:/iu.test(line));
+
+      if (!contentLengthHeader) {
+        writeMcpError(null, -32600, "Missing Content-Length header");
+        buffer = Buffer.alloc(0);
+        return;
+      }
+
+      const contentLength = Number.parseInt(contentLengthHeader.split(":")[1]?.trim() ?? "", 10);
+      if (!Number.isFinite(contentLength) || contentLength < 0) {
+        writeMcpError(null, -32600, "Invalid Content-Length header");
+        buffer = Buffer.alloc(0);
+        return;
+      }
+
+      const totalLength = headerEnd + 4 + contentLength;
+      if (buffer.length < totalLength) {
+        return;
+      }
+
+      const body = buffer.slice(headerEnd + 4, totalLength).toString("utf8");
+      buffer = buffer.slice(totalLength);
+      void handleMessage(body);
+    }
+  });
+
+  process.stdin.resume();
 }
 
 function shortId(value: string | undefined, length = 10): string {
@@ -1254,6 +1555,11 @@ async function main(argv: string[]): Promise<void> {
   const modelOption = consumeOption(rest, "--model");
   const baseUrlOption = consumeOption(rest, "--base-url");
   const timeoutMsOption = consumeOption(rest, "--timeout-ms");
+  const uriOption = consumeOption(rest, "--uri");
+  const usernameOption = consumeOption(rest, "--username");
+  const passwordOption = consumeOption(rest, "--password");
+  const databaseOption = consumeOption(rest, "--database");
+  const neo4jDisabled = consumeFlag(rest, "--disabled");
   const storeRoot = resolveStoreRoot({ rootDir: storeDir });
   const domains = domainsOption ? domainsOption.split(",").map((value) => value.trim()).filter(Boolean) : undefined;
   const limit = limitOption ? Number.parseInt(limitOption, 10) : undefined;
@@ -1261,6 +1567,17 @@ async function main(argv: string[]): Promise<void> {
   const minConfidence = minConfidenceOption ? Number.parseFloat(minConfidenceOption) : undefined;
 
   if (command === "console") {
+    const { startInkConsole } = await import("./ink-console.js");
+    await startInkConsole(storeRoot, profileOption);
+    return;
+  }
+
+  if (command === "mcp-stdio") {
+    await startMcpStdioServer(storeRoot);
+    return;
+  }
+
+  if (command === "console-legacy") {
     await startConsole(storeRoot, profileOption);
     return;
   }
@@ -1362,6 +1679,11 @@ async function main(argv: string[]): Promise<void> {
     return;
   }
 
+  if (command === "provider-wizard") {
+    await runProviderWizard(storeRoot);
+    return;
+  }
+
   if (command === "provider-clear") {
     console.log(JSON.stringify(await clearStoredProviderConfig({ rootDir: storeRoot }), null, 2));
     return;
@@ -1376,6 +1698,55 @@ async function main(argv: string[]): Promise<void> {
 
     const profile = await loadProfile(profileId, { rootDir: storeRoot });
     console.log(JSON.stringify(getProviderPolicyStatus(profile, operation, { rootDir: storeRoot }), null, 2));
+    return;
+  }
+
+  if (command === "neo4j-status") {
+    console.log(JSON.stringify(await getNeo4jStatus({ rootDir: storeRoot }), null, 2));
+    return;
+  }
+
+  if (command === "neo4j-config") {
+    console.log(JSON.stringify(getStoredNeo4jConfig({ rootDir: storeRoot }), null, 2));
+    return;
+  }
+
+  if (command === "neo4j-set") {
+    if (!uriOption || !usernameOption || !passwordOption) {
+      throw new Error("neo4j-set requires --uri, --username, and --password.");
+    }
+
+    const saved = saveNeo4jConfig(
+      {
+        uri: uriOption,
+        username: usernameOption,
+        password: passwordOption,
+        database: databaseOption ?? null,
+        enabled: !neo4jDisabled
+      },
+      { rootDir: storeRoot }
+    );
+    console.log(JSON.stringify(saved, null, 2));
+    return;
+  }
+
+  if (command === "neo4j-wizard") {
+    await runNeo4jWizard(storeRoot);
+    return;
+  }
+
+  if (command === "neo4j-clear") {
+    console.log(JSON.stringify(clearStoredNeo4jConfig({ rootDir: storeRoot }), null, 2));
+    return;
+  }
+
+  if (command === "neo4j-sync") {
+    const profileId = rest[0];
+    if (!profileId) {
+      throw new Error("neo4j-sync requires a profile id.");
+    }
+
+    console.log(JSON.stringify(await syncStoredProfileKnowledgeGraph(profileId, { rootDir: storeRoot }), null, 2));
     return;
   }
 

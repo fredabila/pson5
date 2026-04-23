@@ -19,6 +19,27 @@ It is not yet:
 - an LLM orchestration framework
 - a replacement for Claude or OpenAI
 
+## Why A Skill File Matters
+
+An agent will not reliably infer the right PSON operating pattern just because the SDK exists.
+
+So yes: a PSON skill or tool contract is strongly recommended.
+
+The skill should teach the agent to:
+
+- use `getAgentContext(...)` by default
+- use `getNextQuestions(...)` only when uncertainty matters
+- store answers through `learn(...)`
+- treat simulation as probabilistic support
+- avoid reading the full raw profile unless explicitly required
+
+Reference:
+
+- [pson-agent-skill.md](/C:/Users/user/pson5/docs/usage/pson-agent-skill.md)
+- [skills/pson-agent/SKILL.md](/C:/Users/user/pson5/skills/pson-agent/SKILL.md)
+- [agent-tools.md](/C:/Users/user/pson5/docs/usage/agent-tools.md)
+- [agent-auth.md](/C:/Users/user/pson5/docs/usage/agent-auth.md)
+
 ## Agent Pattern
 
 Recommended current pattern:
@@ -43,6 +64,17 @@ An agent can:
 - read a filtered agent context
 - ask PSON5 for a likely response tendency
 - inspect structural support before using a prediction in an answer
+
+## Runtime Boundaries
+
+Use the transport that matches where the agent actually lives:
+
+- direct SDK when the agent runs in your backend or worker
+- HTTP tools when the agent runs remotely
+- MCP over HTTP when the framework expects MCP-style JSON-RPC
+- local stdio MCP when the agent runs on the same machine
+
+PSON does not require one transport. It provides a shared tool contract across those boundaries.
 
 ## Important Safety Rule
 
@@ -85,9 +117,23 @@ That means agent integration should use:
 3. prompt construction that only exposes allowed profile fields
 4. post-processing that validates generated outputs before writing anything back
 
+## Where The LLM Actually Lives Today
+
+The SDK itself does not instantiate or own the model runtime.
+
+Today:
+
+- the SDK orchestrates profile, learning, simulation, and projection calls
+- the provider engine is the optional bridge to OpenAI or Anthropic
+- provider-backed cognition only happens when provider config exists and policy permits it
+
+That provider path lives in:
+
+- [packages/provider-engine/src/index.ts](/C:/Users/user/pson5/packages/provider-engine/src/index.ts)
+
 ## What Is Missing Before Deeper Agent Integration
 
-- Claude provider support
+- deeper provider-led acquisition and writeback control
 - prompt and tool contracts for profile-aware generation
 - privacy-aware prompt filtering
 - writeback validation for model-generated profile updates

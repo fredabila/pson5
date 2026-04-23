@@ -14,7 +14,7 @@ import type {
 } from "@pson5/core-types";
 import { deriveKnowledgeGraph } from "@pson5/graph-engine";
 import { deriveInferredProfileWithProvider, getModeledFieldPaths } from "@pson5/modeling-engine";
-import { normalizeAnswerWithProvider } from "@pson5/provider-engine";
+import { deriveAdaptiveQuestion, normalizeAnswerWithProvider } from "@pson5/provider-engine";
 import { ProfileStoreError, loadProfile, resolveStoreRoot, saveProfile } from "@pson5/serialization-engine";
 import { deriveStateProfile } from "@pson5/state-engine";
 
@@ -292,16 +292,128 @@ function getObservedAnswerIds(profile: PsonProfile): Set<string> {
     }
 
     const answers = (value as { answers?: Record<string, unknown> }).answers ?? {};
-    for (const questionId of Object.keys(answers)) {
+    for (const [questionId, answerRecord] of Object.entries(answers)) {
       observedAnswerIds.add(questionId);
+      if (
+        typeof answerRecord === "object" &&
+        answerRecord !== null &&
+        !Array.isArray(answerRecord) &&
+        typeof (answerRecord as { source_question_id?: unknown }).source_question_id === "string"
+      ) {
+        observedAnswerIds.add((answerRecord as { source_question_id: string }).source_question_id);
+      }
     }
   }
 
   return observedAnswerIds;
 }
 
-function findQuestion(questionId: string, registry: QuestionDefinition[]): QuestionDefinition | undefined {
-  return registry.find((question) => question.id === questionId);
+function getTrackingQuestionIds(question: QuestionDefinition): string[] {
+  return question.source_question_id ? [question.id, question.source_question_id] : [question.id];
+}
+
+function getObservedFacts(profile: PsonProfile): Record<string, unknown> {
+  const facts: Record<string, unknown> = {};
+
+  for (const value of Object.values(profile.layers.observed)) {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      continue;
+    }
+
+    const domainFacts = (value as { facts?: Record<string, unknown> }).facts ?? {};
+    for (const [key, factValue] of Object.entries(domainFacts)) {
+      facts[key] = factValue;
+    }
+  }
+
+  return facts;
+}
+
+function getInferredTraitMap(profile: PsonProfile): Record<string, unknown> {
+  const traits: Record<string, unknown> = {};
+  const coreLayer = profile.layers.inferred.core;
+  if (typeof coreLayer !== "object" || coreLayer === null || Array.isArray(coreLayer)) {
+    return traits;
+  }
+
+  const inferredTraits = (coreLayer as { traits?: Array<{ key?: unknown; value?: unknown }> }).traits ?? [];
+  for (const entry of inferredTraits) {
+    if (typeof entry?.key === "string") {
+      traits[entry.key] = entry.value;
+    }
+  }
+
+  return traits;
+}
+
+function hasSignalForTarget(profile: PsonProfile, target: string): boolean {
+  const observedFacts = getObservedFacts(profile);
+  if (Object.prototype.hasOwnProperty.call(observedFacts, target)) {
+    return true;
+  }
+
+  const inferredTraits = getInferredTraitMap(profile);
+  if (Object.prototype.hasOwnProperty.call(inferredTraits, target)) {
+    return true;
+  }
+
+  return false;
+}
+
+function getConfidenceGaps(profile: PsonProfile, candidates: QuestionDefinition[]): string[] {
+  const unresolvedTargets = new Set<string>();
+
+  for (const question of candidates) {
+    for (const target of question.information_targets) {
+      if (!hasSignalForTarget(profile, target)) {
+        unresolvedTargets.add(target);
+      }
+    }
+  }
+
+  return [...unresolvedTargets];
+}
+
+function computeFatigueScore(session: LearningSessionState): number {
+  const askedCount = session.asked_question_ids.length;
+  const answeredCount = session.answered_question_ids.length;
+  const unansweredCount = Math.max(0, askedCount - answeredCount);
+
+  const questionLoad = Math.min(1, askedCount / 8);
+  const unansweredLoad = askedCount > 0 ? unansweredCount / askedCount : 0;
+
+  return Number((questionLoad * 0.6 + unansweredLoad * 0.4).toFixed(2));
+}
+
+function shouldStopEarlyLocally(session: LearningSessionState, confidenceGaps: string[]): { stop: boolean; reason: string | null } {
+  const fatigueScore = computeFatigueScore(session);
+
+  if (confidenceGaps.length === 0) {
+    return {
+      stop: true,
+      reason: "No high-value confidence gaps remain in the active domains."
+    };
+  }
+
+  if (fatigueScore >= 0.78 && confidenceGaps.length <= 1) {
+    return {
+      stop: true,
+      reason: "Learning session stopped early because fatigue is high and remaining uncertainty is low."
+    };
+  }
+
+  return {
+    stop: false,
+    reason: null
+  };
+}
+
+function findQuestion(
+  questionId: string,
+  registry: QuestionDefinition[],
+  session?: LearningSessionState
+): QuestionDefinition | undefined {
+  return [...(session?.generated_questions ?? []), ...registry].find((question) => question.id === questionId);
 }
 
 function getEffectiveDomains(profile: PsonProfile, domains?: string[]): string[] {
@@ -398,6 +510,7 @@ async function buildObservedAnswerRecord(
   return {
     source_id: `answer_${now.getTime()}_${question.id}`,
     question_id: question.id,
+    source_question_id: question.source_question_id,
     domain: question.domain,
     prompt: question.prompt,
     raw_value: value,
@@ -516,6 +629,103 @@ export function getQuestionsForDomains(
   );
 }
 
+async function selectAdaptiveQuestions(
+  profile: PsonProfile,
+  session: LearningSessionState,
+  candidates: QuestionDefinition[],
+  limit: number,
+  options?: ProfileStoreOptions
+): Promise<{ questions: QuestionDefinition[]; stop_reason: string | null; confidence_gaps: string[]; fatigue_score: number }> {
+  const confidenceGaps = getConfidenceGaps(profile, candidates);
+  const fatigueScore = computeFatigueScore(session);
+
+  if (limit <= 0 || candidates.length === 0) {
+    return {
+      questions: [],
+      stop_reason: candidates.length === 0 ? "No remaining candidate questions in the active domains." : null,
+      confidence_gaps: confidenceGaps,
+      fatigue_score: fatigueScore
+    };
+  }
+
+  const localStop = shouldStopEarlyLocally(session, confidenceGaps);
+  if (localStop.stop) {
+    return {
+      questions: [],
+      stop_reason: localStop.reason,
+      confidence_gaps: confidenceGaps,
+      fatigue_score: fatigueScore
+    };
+  }
+
+  const adaptive = await deriveAdaptiveQuestion(
+    profile,
+    {
+      candidates: candidates.slice(0, Math.max(limit * 4, 8)),
+      session: {
+        session_id: session.session_id,
+        domains: session.domains,
+        depth: session.depth,
+        asked_question_ids: session.asked_question_ids,
+        answered_question_ids: session.answered_question_ids,
+        contradiction_flags: session.contradiction_flags ?? [],
+        confidence_gaps: confidenceGaps,
+        fatigue_score: fatigueScore
+      }
+    },
+    { rootDir: options?.rootDir }
+  );
+
+  if (adaptive?.stop_early) {
+    return {
+      questions: [],
+      stop_reason: adaptive.rationale || "Provider determined that enough signal has been collected for now.",
+      confidence_gaps: confidenceGaps,
+      fatigue_score: fatigueScore
+    };
+  }
+
+  const chosen = adaptive?.selected_question_id
+    ? candidates.find((question) => question.id === adaptive.selected_question_id)
+    : undefined;
+
+  if (!adaptive || !chosen) {
+    return {
+      questions: candidates.slice(0, limit),
+      stop_reason: null,
+      confidence_gaps: confidenceGaps,
+      fatigue_score: fatigueScore
+    };
+  }
+
+  const rewritten: QuestionDefinition = {
+    ...(adaptive.question_mode === "follow_up"
+      ? {
+          ...chosen,
+          id: `followup_${session.session_id}_${chosen.id}`,
+          source_question_id: chosen.id,
+          generated_by: "provider" as const,
+          generation_rationale: adaptive.rationale
+        }
+      : chosen),
+    prompt: adaptive?.rewritten_prompt?.trim() ? adaptive.rewritten_prompt.trim() : chosen.prompt,
+    generated_by: "provider",
+    answer_style_hint: adaptive?.answer_style_hint?.trim()
+      ? adaptive.answer_style_hint.trim()
+      : chosen.type === "single_choice"
+        ? "Answer naturally. The system will map your wording to the structured choice."
+        : "Answer naturally in your own words.",
+    generation_rationale: adaptive.rationale
+  };
+
+  return {
+    questions: [rewritten, ...candidates.filter((question) => question.id !== chosen.id)].slice(0, limit),
+    stop_reason: null,
+    confidence_gaps: confidenceGaps,
+    fatigue_score: fatigueScore
+  };
+}
+
 export async function getNextQuestions(
   profileId: string,
   input: {
@@ -528,7 +738,7 @@ export async function getNextQuestions(
 ): Promise<LearningSessionResult> {
   const profile = await loadProfile(profileId, options);
   const registry = await getQuestionRegistry(options);
-  const session =
+  const session: LearningSessionState =
     input.session_id !== undefined
       ? await loadSession(input.session_id, options)
       : {
@@ -538,6 +748,11 @@ export async function getNextQuestions(
           depth: getEffectiveDepth(profile, input.depth),
           asked_question_ids: [],
           answered_question_ids: [],
+          generated_questions: [],
+          contradiction_flags: [],
+          confidence_gaps: [],
+          fatigue_score: 0,
+          stop_reason: null,
           status: "active",
           created_at: nowIso(),
           updated_at: nowIso()
@@ -552,10 +767,30 @@ export async function getNextQuestions(
     (question) => !seenQuestionIds.has(question.id)
   );
 
-  const selectedQuestions = candidates.slice(0, input.limit ?? 1);
+  const selection = await selectAdaptiveQuestions(
+    profile,
+    session,
+    candidates,
+    input.limit ?? 1,
+    options
+  );
+  const selectedQuestions = selection.questions;
+  const selectedGeneratedQuestions = selectedQuestions.filter((question) => question.generated_by === "provider");
   const nextSession: LearningSessionState = {
     ...session,
-    asked_question_ids: [...session.asked_question_ids, ...selectedQuestions.map((question) => question.id)],
+    asked_question_ids: [
+      ...session.asked_question_ids,
+      ...selectedQuestions.flatMap((question) => getTrackingQuestionIds(question))
+    ],
+    generated_questions: [
+      ...(session.generated_questions ?? []).filter(
+        (question) => !selectedGeneratedQuestions.some((selected) => selected.id === question.id)
+      ),
+      ...selectedGeneratedQuestions
+    ],
+    confidence_gaps: selection.confidence_gaps,
+    fatigue_score: selection.fatigue_score,
+    stop_reason: selection.stop_reason,
     updated_at: nowIso(),
     status: selectedQuestions.length === 0 ? "completed" : "active"
   };
@@ -588,9 +823,10 @@ export async function submitLearningAnswers(
   let nextProfile = profile;
   const updatedFields = new Set<string>();
   const answeredQuestionIds: string[] = [];
+  const contradictionFlags = [...(sessionResult.session.contradiction_flags ?? [])];
 
   for (const answer of input.answers) {
-    const question = findQuestion(answer.question_id, registry);
+    const question = findQuestion(answer.question_id, registry, sessionResult.session);
     if (!question) {
       throw new ProfileStoreError("validation_error", `Unknown question '${answer.question_id}'.`);
     }
@@ -603,10 +839,23 @@ export async function submitLearningAnswers(
     }
 
     const record = await buildObservedAnswerRecord(nextProfile, question, answer.value, options);
+    const existingFacts = getObservedFacts(nextProfile);
+    for (const target of question.information_targets) {
+      const previousValue = existingFacts[target];
+      if (previousValue !== undefined && previousValue !== record.normalized_value) {
+        contradictionFlags.push({
+          target,
+          previous_value: previousValue,
+          incoming_value: record.normalized_value,
+          question_id: question.id,
+          detected_at: record.recorded_at
+        });
+      }
+    }
     nextProfile = writeObservedAnswer(nextProfile, record);
     updatedFields.add(`layers.observed.${question.domain}.answers.${question.id}`);
     updatedFields.add(`layers.observed.${question.domain}.facts`);
-    answeredQuestionIds.push(question.id);
+    answeredQuestionIds.push(...getTrackingQuestionIds(question));
   }
 
   const modeledProfile = await deriveInferredProfileWithProvider(nextProfile, options);
@@ -625,6 +874,14 @@ export async function submitLearningAnswers(
     answered_question_ids: Array.from(
       new Set([...sessionResult.session.answered_question_ids, ...answeredQuestionIds])
     ),
+    contradiction_flags: contradictionFlags,
+    fatigue_score: computeFatigueScore({
+      ...sessionResult.session,
+      answered_question_ids: Array.from(
+        new Set([...sessionResult.session.answered_question_ids, ...answeredQuestionIds])
+      )
+    }),
+    stop_reason: null,
     updated_at: nowIso()
   };
   await saveSession(updatedSession, options);

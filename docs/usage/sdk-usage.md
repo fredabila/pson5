@@ -4,6 +4,11 @@
 
 This document shows how to use the current PSON5 SDK from application or agent code.
 
+For remote agent access and API-side auth, also see:
+
+- [agent-tools.md](/C:/Users/user/pson5/docs/usage/agent-tools.md)
+- [agent-auth.md](/C:/Users/user/pson5/docs/usage/agent-auth.md)
+
 ## Current Package
 
 - `@pson5/sdk`
@@ -14,7 +19,7 @@ Implementation:
 
 ## What The SDK Does Today
 
-The SDK currently wraps the local file-backed profile lifecycle and the acquisition, modeling, simulation, state, graph, and provider-status layers.
+The SDK currently wraps the local file-backed profile lifecycle and the acquisition, modeling, simulation, state, graph, provider-status, and Neo4j sync layers.
 
 It now also supports saving configurable domain modules into the store so acquisition is not limited to the built-in registry.
 
@@ -22,8 +27,19 @@ It does not currently:
 
 - authenticate remote users
 - call Claude
-- connect to Neo4j
 - enforce production-grade privacy policy
+
+## Important Clarification About LLMs
+
+The SDK itself is not the model runtime.
+
+Current split:
+
+- `@pson5/sdk` orchestrates profile lifecycle, learning, simulation, and projection
+- `@pson5/provider-engine` is the optional provider bridge
+- provider-backed cognition only runs when provider config exists and policy allows it
+
+So if you are looking for where OpenAI or Anthropic is actually invoked, that does not happen in `PsonClient` directly. It happens under the provider layer.
 
 ## Basic Flow
 
@@ -162,6 +178,14 @@ const latest = await client.loadProfileByUserId("app_user_42", store);
 const profileIds = await client.findProfilesByUserId("app_user_42", store);
 ```
 
+## Agent Tool Examples
+
+Examples in this repo:
+
+- [examples/agent-tools/sdk-agent-loop.ts](/C:/Users/user/pson5/examples/agent-tools/sdk-agent-loop.ts)
+- [examples/agent-tools/pson-sdk-tools.ts](/C:/Users/user/pson5/examples/agent-tools/pson-sdk-tools.ts)
+- [examples/agent-tools/openai-function-tools.ts](/C:/Users/user/pson5/examples/agent-tools/openai-function-tools.ts)
+
 ## Current SDK Methods
 
 - `createProfile(input)`
@@ -179,6 +203,11 @@ const profileIds = await client.findProfilesByUserId("app_user_42", store);
 - `buildAgentContext(profile, options)`
 - `getAgentContext(profileId, options, storeOptions)`
 - `getProviderStatus()`
+- `getNeo4jConfig()`
+- `getNeo4jStatus()`
+- `saveNeo4jConfig(input, options)`
+- `clearNeo4jConfig(options)`
+- `syncProfileGraph(profileId, options)`
 - `getProviderPolicy(profileId, operation, options)`
 - `validate(document)`
 - `export(profile)`
@@ -199,6 +228,25 @@ All persistent SDK operations accept:
 `rootDir` controls where the file-backed `.pson5-store` data lives.
 
 `adapter` lets you swap the storage backend while keeping the same SDK methods.
+
+## Neo4j Graph Sync
+
+The SDK can now check Neo4j connectivity and sync a profile's `knowledge_graph` into a real Neo4j database.
+
+```ts
+await client.saveNeo4jConfig(
+  {
+    uri: "neo4j+s://example.databases.neo4j.io",
+    username: "neo4j",
+    password: process.env.NEO4J_PASSWORD ?? "",
+    database: "neo4j"
+  },
+  store
+);
+
+const status = await client.getNeo4jStatus(store);
+const sync = await client.syncProfileGraph(profile.profile_id, store);
+```
 
 ## Custom Storage Adapter
 
@@ -307,7 +355,7 @@ Use the API when:
 - local file persistence only
 - no distributed locking
 - no user auth
-- only OpenAI is wired today
+- no hosted PSON cloud service in this repo
 - no real policy engine
 - no external graph database
 
@@ -334,3 +382,15 @@ The SDK now includes an agent-facing projection layer so agents can use filtered
 See:
 
 - [agent-context.md](/C:/Users/user/pson5/docs/usage/agent-context.md)
+- [agent-integration.md](/C:/Users/user/pson5/docs/usage/agent-integration.md)
+- [pson-agent-skill.md](/C:/Users/user/pson5/docs/usage/pson-agent-skill.md)
+- [agent-tools.md](/C:/Users/user/pson5/docs/usage/agent-tools.md)
+
+## Framework-Consumable Tool Definitions
+
+The SDK now also exports reusable tool contracts for agent frameworks:
+
+- `getPsonAgentToolDefinitions()`
+- `createPsonAgentToolExecutor(client, storeOptions)`
+
+This gives you a stable set of tool names, JSON-schema inputs, and an execution layer without rebuilding the contract in every project.

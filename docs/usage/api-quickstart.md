@@ -4,6 +4,11 @@
 
 This document shows the current practical use of the PSON5 API.
 
+For agent-specific auth and transport guidance, also see:
+
+- [agent-tools.md](/C:/Users/user/pson5/docs/usage/agent-tools.md)
+- [agent-auth.md](/C:/Users/user/pson5/docs/usage/agent-auth.md)
+
 Implementation:
 
 - [api/src/server.ts](/C:/Users/user/pson5/apps/api/src/server.ts)
@@ -222,19 +227,36 @@ Each entry records the request method, route, operation, caller identity, subjec
 
 - `GET /health`
 - `GET /v1/pson/provider/status`
+- `GET /v1/pson/neo4j/status`
+- `GET /v1/pson/tools/definitions`
+- `GET /v1/pson/tools/openai`
+- `POST /v1/mcp`
 - `POST /v1/pson/init`
 - `POST /v1/pson/question/next`
 - `POST /v1/pson/learn`
 - `POST /v1/pson/simulate`
 - `POST /v1/pson/agent-context`
+- `POST /v1/pson/tools/execute`
 - `GET /v1/pson/profile-by-user?user_id=...`
 - `GET /v1/pson/profile/{id}`
 - `GET /v1/pson/graph/{id}`
+- `POST /v1/pson/neo4j/sync`
 - `GET /v1/pson/state/{id}`
 - `GET /v1/pson/explain?profile_id=...&prediction=...`
 - `GET /v1/pson/export?profile_id=...`
 - `POST /v1/pson/import`
 - `POST /v1/pson/validate`
+
+## Agent Tool Endpoints
+
+These are the main routes an external agent framework will usually consume:
+
+- `GET /v1/pson/tools/definitions`
+- `GET /v1/pson/tools/openai`
+- `POST /v1/pson/tools/execute`
+- `POST /v1/mcp`
+
+If you are integrating a remote agent, start with those routes before dropping into the lower-level profile routes directly.
 
 ## Minimal Lifecycle
 
@@ -302,13 +324,28 @@ POST /v1/pson/simulate
 GET /v1/pson/explain?profile_id=pson_123&prediction=delayed_start
 ```
 
-### 6. Export A Safe Profile
+### 6. Check Neo4j Status
+
+```text
+GET /v1/pson/neo4j/status
+```
+
+### 7. Sync The Profile Graph To Neo4j
+
+```json
+POST /v1/pson/neo4j/sync
+{
+  "profile_id": "pson_123"
+}
+```
+
+### 8. Export A Safe Profile
 
 ```text
 GET /v1/pson/export?profile_id=pson_123&redaction_level=safe
 ```
 
-### 7. Get Agent Context
+### 9. Get Agent Context
 
 ```json
 POST /v1/pson/agent-context
@@ -326,10 +363,78 @@ POST /v1/pson/agent-context
 }
 ```
 
-### 8. Resolve A Profile By App User Id
+### 10. Resolve A Profile By App User Id
 
 ```text
 GET /v1/pson/profile-by-user?user_id=app_user_42
+```
+
+### 11. Remote Tool Server
+
+```text
+GET /v1/pson/tools/definitions
+```
+
+```text
+GET /v1/pson/tools/openai
+```
+
+```json
+POST /v1/pson/tools/execute
+{
+  "name": "pson_get_agent_context",
+  "arguments": {
+    "profile_id": "pson_123",
+    "intent": "help the user study for an exam",
+    "include_predictions": true,
+    "max_items": 12
+  }
+}
+```
+
+### 12. MCP HTTP Transport
+
+```json
+POST /v1/mcp
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "clientInfo": {
+      "name": "example-client",
+      "version": "0.1.0"
+    }
+  }
+}
+```
+
+```json
+POST /v1/mcp
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {}
+}
+```
+
+```json
+POST /v1/mcp
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "pson_get_agent_context",
+    "arguments": {
+      "profile_id": "pson_123",
+      "intent": "help the user study for an exam",
+      "include_predictions": true,
+      "max_items": 12
+    }
+  }
+}
 ```
 
 ## What The API Is Today

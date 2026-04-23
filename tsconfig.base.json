@@ -8,6 +8,7 @@
     "paths": {
       "@pson5/acquisition-engine": ["packages/acquisition-engine/src/index.ts"],
       "@pson5/agent-context": ["packages/agent-context/src/index.ts"],
+      "@pson5/neo4j-store": ["packages/neo4j-store/src/index.ts"],
       "@pson5/provider-engine": ["packages/provider-engine/src/index.ts"],
       "@pson5/postgres-store": ["packages/postgres-store/src/index.ts"],
       "@pson5/core-types": ["packages/core-types/src/index.ts"],

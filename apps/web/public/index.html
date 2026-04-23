@@ -7,95 +7,197 @@
     <link rel="stylesheet" href="/landing.css" />
   </head>
   <body>
-    <main class="landing-shell">
-      <section class="hero-panel">
-        <div class="hero-copy">
-          <p class="eyebrow">PSON5</p>
-          <h1>A personalization memory layer for agents, not just another settings page.</h1>
-          <p class="lede">
-            PSON5 captures user-relevant personal data, models patterns, and serves agents a filtered context layer
-            instead of an undifferentiated pile of profile detail.
-          </p>
-          <div class="cta-row">
-            <a class="primary-cta" href="/access">Open Console</a>
-            <a class="secondary-cta" href="#capabilities">See Capabilities</a>
-          </div>
-        </div>
-        <div class="hero-card">
-          <div class="hero-stat">
-            <span>Portable Standard</span>
-            <strong>.pson</strong>
-          </div>
-          <div class="hero-stat">
-            <span>Agent Layer</span>
-            <strong>Filtered Context</strong>
-          </div>
-          <div class="hero-stat">
-            <span>Runtime Modes</span>
-            <strong>Rules + Providers</strong>
-          </div>
-        </div>
-      </section>
+    <div class="site-shell">
+      <header class="site-nav">
+        <a class="wordmark" href="/">PSON5</a>
+        <nav class="nav-links">
+          <a href="#platform">Platform</a>
+          <a href="#workflows">Workflows</a>
+          <a href="#architecture">Architecture</a>
+          <a href="/access" class="nav-cta">Open Dashboard</a>
+        </nav>
+      </header>
 
-      <section class="feature-band" id="capabilities">
-        <article class="feature-card">
-          <p class="feature-kicker">Structured Memory</p>
-          <h2>Observed facts, inferred traits, and predictions stay separate.</h2>
-          <p>
-            Agents can reason over a clean profile model instead of collapsing facts, inferences, and guesses into one
-            blob.
-          </p>
-        </article>
-        <article class="feature-card">
-          <p class="feature-kicker">Agent Standard</p>
-          <h2>Serve only relevant personal context to agents.</h2>
-          <p>
-            The new agent-context layer ranks and filters profile signals so agents consume what matters for the task,
-            not every low-value detail.
-          </p>
-        </article>
-        <article class="feature-card">
-          <p class="feature-kicker">Privacy & Audit</p>
-          <h2>Provider access is policy-gated and export can be safely redacted.</h2>
-          <p>
-            PSON5 enforces provider scopes, supports local-only mode, logs provider usage, and can export a safer shared
-            profile view.
-          </p>
-        </article>
-      </section>
+      <main class="landing-shell">
+        <section class="hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">Cognitive Personalization Infrastructure</p>
+            <h1>Build agents that learn people with structure, context, and restraint.</h1>
+            <p class="lede">
+              PSON5 gives applications a portable personalization layer: structured user data, adaptive acquisition,
+              agent-safe context projection, simulation, privacy controls, and graph-backed reasoning.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-cta" href="/access">Enter Product Dashboard</a>
+              <a class="secondary-cta" href="#platform">See The Platform</a>
+            </div>
+            <div class="hero-proof">
+              <div>
+                <strong>.pson</strong>
+                <span>portable profile standard</span>
+              </div>
+              <div>
+                <strong>SDK + API + CLI</strong>
+                <span>one engine, multiple surfaces</span>
+              </div>
+              <div>
+                <strong>Rules + LLMs</strong>
+                <span>adaptive but auditable cognition</span>
+              </div>
+            </div>
+          </div>
 
-      <section class="architecture-strip">
-        <div class="strip-copy">
-          <p class="eyebrow">How It Works</p>
-          <h2>User -> PSON5 profile -> Agent context -> Personalized behavior</h2>
-        </div>
-        <div class="flow-grid">
-          <div class="flow-card">
-            <strong>1. Learn</strong>
-            <span>Questions and signals become structured facts.</span>
+          <div class="hero-visual">
+            <div class="signal-panel">
+              <div class="signal-topline">
+                <span>Live profile intelligence</span>
+                <strong>agent-context first</strong>
+              </div>
+              <div class="preview-console">
+                <div class="preview-header">
+                  <span>Observed</span>
+                  <span>Inferred</span>
+                  <span>Projected</span>
+                </div>
+                <div class="preview-grid">
+                  <article>
+                    <h3>Observed facts</h3>
+                    <ul>
+                      <li>learning_mode = reading</li>
+                      <li>task_start_pattern = delay_start</li>
+                      <li>deadline_effect = helps_focus</li>
+                    </ul>
+                  </article>
+                  <article>
+                    <h3>Inferred model</h3>
+                    <ul>
+                      <li>problem_solving_style = plan_first</li>
+                      <li>heuristic = deadline_driven_activation</li>
+                      <li>state = motivated</li>
+                    </ul>
+                  </article>
+                  <article>
+                    <h3>Agent context</h3>
+                    <ul>
+                      <li>relevant signals only</li>
+                      <li>confidence-scored output</li>
+                      <li>privacy-aware projection</li>
+                    </ul>
+                  </article>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="flow-card">
-            <strong>2. Model</strong>
-            <span>Traits and heuristics are derived with confidence.</span>
-          </div>
-          <div class="flow-card">
-            <strong>3. Project</strong>
-            <span>Agents receive a filtered relevance-scored context layer.</span>
-          </div>
-          <div class="flow-card">
-            <strong>4. Simulate</strong>
-            <span>Systems can predict likely user responses and actions.</span>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="closing-panel">
-        <div>
-          <p class="eyebrow">For Builders</p>
-          <h2>Use the public page as the front door. Keep the console as the internal operations surface.</h2>
-        </div>
-        <a class="primary-cta" href="/access">Enter Console</a>
-      </section>
-    </main>
+        <section class="metric-band">
+          <article class="metric-card">
+            <span>Acquisition</span>
+            <strong>Adaptive question flow</strong>
+            <p>LLM-routed selection over approved targets with contradiction, fatigue, and confidence-gap signals.</p>
+          </article>
+          <article class="metric-card">
+            <span>Projection</span>
+            <strong>Agent-standardized context</strong>
+            <p>Agents read a filtered layer, not the entire raw user profile.</p>
+          </article>
+          <article class="metric-card">
+            <span>Deployment</span>
+            <strong>Local to cloud path</strong>
+            <p>File, memory, and repository-backed storage with API, SDK, CLI, and web surfaces.</p>
+          </article>
+        </section>
+
+        <section class="section-block" id="platform">
+          <div class="section-heading">
+            <p class="eyebrow">Platform</p>
+            <h2>A full personalization stack, not a thin preference store.</h2>
+          </div>
+          <div class="feature-grid">
+            <article class="feature-card">
+              <h3>Acquisition engine</h3>
+              <p>Developer-configured domains, shared question registry, adaptive selection, natural-language answers.</p>
+            </article>
+            <article class="feature-card">
+              <h3>Modeling and simulation</h3>
+              <p>Observed facts, inferred traits, heuristics, state shifts, simulations, and graph-supported explanation.</p>
+            </article>
+            <article class="feature-card">
+              <h3>Privacy and controls</h3>
+              <p>Consent scopes, safe export, provider policy gates, access audits, tenant boundaries, signed identity.</p>
+            </article>
+            <article class="feature-card">
+              <h3>Developer surfaces</h3>
+              <p>CLI, SDK, API, dashboard UI, storage adapters, provider layer, and Neo4j sync.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block alt" id="workflows">
+          <div class="section-heading">
+            <p class="eyebrow">Workflows</p>
+            <h2>Use PSON5 as the cognition layer behind agents, products, and internal tools.</h2>
+          </div>
+          <div class="workflow-grid">
+            <article class="workflow-card">
+              <strong>1. Learn</strong>
+              <p>Collect user signals through adaptive prompts and product interactions.</p>
+            </article>
+            <article class="workflow-card">
+              <strong>2. Model</strong>
+              <p>Derive stable traits, heuristics, states, and a knowledge graph with evidence and confidence.</p>
+            </article>
+            <article class="workflow-card">
+              <strong>3. Project</strong>
+              <p>Give agents only relevant personalization context through a standardized agent view.</p>
+            </article>
+            <article class="workflow-card">
+              <strong>4. Simulate</strong>
+              <p>Predict likely user responses, actions, and friction points before the agent acts.</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="section-block" id="architecture">
+          <div class="section-heading">
+            <p class="eyebrow">Architecture</p>
+            <h2>User -> .pson profile -> agent context -> personalized behavior.</h2>
+          </div>
+          <div class="architecture-strip">
+            <div class="arch-node">
+              <strong>User data</strong>
+              <span>identity, cognitive, behavioral, contextual, domain-specific</span>
+            </div>
+            <div class="arch-arrow">-></div>
+            <div class="arch-node">
+              <strong>PSON profile</strong>
+              <span>observed, inferred, simulated, state, graph, privacy, metadata</span>
+            </div>
+            <div class="arch-arrow">-></div>
+            <div class="arch-node">
+              <strong>Agent context</strong>
+              <span>relevance-scored, constrained, confidence-aware projection</span>
+            </div>
+            <div class="arch-arrow">-></div>
+            <div class="arch-node">
+              <strong>Output</strong>
+              <span>personalized agent behavior, product logic, dashboards, exports</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="cta-panel">
+          <div>
+            <p class="eyebrow">Product Surface</p>
+            <h2>Use the dashboard to inspect the whole system end to end.</h2>
+            <p>The dashboard exposes learning, simulation, provider status, exports, graph sync, and profile inspection.</p>
+          </div>
+          <div class="hero-actions">
+            <a class="primary-cta" href="/access">Open Dashboard</a>
+            <a class="secondary-cta" href="/console">Go Directly To Console</a>
+          </div>
+        </section>
+      </main>
+    </div>
   </body>
 </html>

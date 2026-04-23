@@ -7,7 +7,16 @@ import type { InitProfileInput, ProfileStoreOptions } from "@pson5/core-types";
 import { getNextQuestions, submitLearningAnswers } from "@pson5/acquisition-engine";
 import { buildStoredAgentContext } from "@pson5/agent-context";
 import { explainPredictionSupport } from "@pson5/graph-engine";
+import { getNeo4jStatus, syncStoredProfileKnowledgeGraph } from "@pson5/neo4j-store";
 import { getProviderPolicyStatus, getProviderStatusFromEnv } from "@pson5/provider-engine";
+import {
+  createPsonAgentToolExecutor,
+  getPsonAgentToolDefinitions,
+  PsonClient,
+  type PsonAgentToolCall,
+  type PsonAgentToolDefinition,
+  type PsonAgentToolName
+} from "@pson5/sdk";
 import {
   createMemoryProfileStoreAdapter,
   exportStoredProfile,
@@ -92,6 +101,12 @@ interface CallerContext {
   authSource: AuthSource;
 }
 
+interface RemoteToolRoutePolicy {
+  requiredRole: RouteAccessLevel;
+  requiredScopes: string[];
+  operation: string;
+}
+
 interface ApiAccessAuditRecord {
   method: string;
   route: string;
@@ -109,6 +124,19 @@ interface ApiAccessAuditRecord {
   user_id?: string | null;
   required_role?: RouteAccessLevel;
   required_scopes?: string[];
+}
+
+interface JsonRpcRequestBody {
+  jsonrpc?: string;
+  id?: string | number | null;
+  method?: string;
+  params?: Record<string, unknown>;
+}
+
+interface JsonRpcSuccessPayload {
+  body: string;
+  statusCode: number;
+  headers: Record<string, string>;
 }
 
 let remoteJwksCache: {
@@ -164,6 +192,51 @@ function errorJson(
       2
     ),
     statusCode,
+    headers: {
+      "content-type": "application/json"
+    }
+  };
+}
+
+function jsonRpcResult(id: string | number | null, result: unknown): JsonRpcSuccessPayload {
+  return {
+    body: JSON.stringify(
+      {
+        jsonrpc: "2.0",
+        id,
+        result
+      },
+      null,
+      2
+    ),
+    statusCode: 200,
+    headers: {
+      "content-type": "application/json"
+    }
+  };
+}
+
+function jsonRpcError(
+  id: string | number | null,
+  code: number,
+  message: string,
+  data?: unknown
+): JsonRpcSuccessPayload {
+  return {
+    body: JSON.stringify(
+      {
+        jsonrpc: "2.0",
+        id,
+        error: {
+          code,
+          message,
+          ...(data !== undefined ? { data } : {})
+        }
+      },
+      null,
+      2
+    ),
+    statusCode: 200,
     headers: {
       "content-type": "application/json"
     }
@@ -774,6 +847,70 @@ function authorizeCaller(
   };
 }
 
+function getToolRoutePolicy(toolName: PsonAgentToolName): RemoteToolRoutePolicy {
+  switch (toolName) {
+    case "pson_load_profile_by_user_id":
+      return {
+        requiredRole: "viewer",
+        requiredScopes: ["profiles:read"],
+        operation: "tool-load-profile-by-user-id"
+      };
+    case "pson_create_profile":
+      return {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write"],
+        operation: "tool-create-profile"
+      };
+    case "pson_get_agent_context":
+      return {
+        requiredRole: "viewer",
+        requiredScopes: ["profiles:read", "agent-context:read"],
+        operation: "tool-agent-context"
+      };
+    case "pson_get_next_questions":
+      return {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write"],
+        operation: "tool-next-questions"
+      };
+    case "pson_learn":
+      return {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write"],
+        operation: "tool-learn"
+      };
+    case "pson_simulate":
+      return {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write", "simulation:run"],
+        operation: "tool-simulate"
+      };
+    case "pson_get_provider_policy":
+      return {
+        requiredRole: "viewer",
+        requiredScopes: ["profiles:read"],
+        operation: "tool-provider-policy"
+      };
+  }
+}
+
+function toOpenAiStyleTools(definitions: PsonAgentToolDefinition[]) {
+  return definitions.map((tool) => ({
+    type: "function",
+    name: tool.name,
+    description: tool.description,
+    parameters: tool.input_schema
+  }));
+}
+
+function toMcpTools(definitions: PsonAgentToolDefinition[]) {
+  return definitions.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.input_schema
+  }));
+}
+
 function canAccessSubjectUser(caller: CallerContext, userId: string): boolean {
   if (!enforceSubjectUserBinding) {
     return true;
@@ -931,6 +1068,119 @@ async function loadAuthorizedProfile(
   return profile;
 }
 
+async function authorizeToolCall(
+  request: import("node:http").IncomingMessage,
+  caller: CallerContext,
+  tenantId: string | null,
+  toolCall: PsonAgentToolCall,
+  storeOptions: ProfileStoreOptions
+): Promise<void> {
+  const policy = getToolRoutePolicy(toolCall.name);
+  const authorization = authorizeCaller(caller, {
+    requiredRole: policy.requiredRole,
+    requiredScopes: policy.requiredScopes,
+    operation: policy.operation
+  });
+
+  if (!authorization.ok) {
+    await auditDenied(request, storeOptions, authorization.payload, {
+      operation: policy.operation,
+      tenant_id: tenantId,
+      caller_id: caller.callerId,
+      subject_user_id: caller.subjectUserId,
+      caller_role: caller.role,
+      caller_scopes: [...caller.scopes],
+      required_role: policy.requiredRole,
+      required_scopes: policy.requiredScopes
+    });
+    throw authorization.payload;
+  }
+
+  const args = toolCall.arguments ?? {};
+
+  if (toolCall.name === "pson_create_profile") {
+    const userId = typeof args.user_id === "string" ? args.user_id : "";
+    if (!userId) {
+      throw errorJson("validation_error", "Tool pson_create_profile requires user_id.", 400);
+    }
+
+    if (enforceTenant) {
+      const bodyTenantId = typeof args.tenant_id === "string" ? args.tenant_id : null;
+      if (bodyTenantId && bodyTenantId !== tenantId) {
+        throw errorJson("tenant_mismatch", `Tool tenant_id must match header '${tenantHeaderName}'.`, 403);
+      }
+    }
+
+    const subjectAccess = assertSubjectUserAccess(caller, userId, `User '${userId}'`);
+    if (!subjectAccess.ok) {
+      await auditDenied(request, storeOptions, subjectAccess.payload, {
+        operation: policy.operation,
+        tenant_id: tenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        user_id: userId,
+        required_role: policy.requiredRole,
+        required_scopes: policy.requiredScopes
+      });
+      throw subjectAccess.payload;
+    }
+
+    return;
+  }
+
+  if (toolCall.name === "pson_load_profile_by_user_id") {
+    const userId = typeof args.user_id === "string" ? args.user_id : "";
+    if (!userId) {
+      throw errorJson("validation_error", "Tool pson_load_profile_by_user_id requires user_id.", 400);
+    }
+
+    const subjectAccess = assertSubjectUserAccess(caller, userId, `User '${userId}'`);
+    if (!subjectAccess.ok) {
+      await auditDenied(request, storeOptions, subjectAccess.payload, {
+        operation: policy.operation,
+        tenant_id: tenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        user_id: userId,
+        required_role: policy.requiredRole,
+        required_scopes: policy.requiredScopes
+      });
+      throw subjectAccess.payload;
+    }
+
+    const profile = await loadProfileByUserId(userId, storeOptions);
+    const tenantAccess = assertTenantAccess(profile, tenantId);
+    if (!tenantAccess.ok) {
+      await auditDenied(request, storeOptions, tenantAccess.payload, {
+        operation: policy.operation,
+        tenant_id: tenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        profile_id: profile.profile_id,
+        user_id: profile.user_id,
+        required_role: policy.requiredRole,
+        required_scopes: policy.requiredScopes
+      });
+      throw tenantAccess.payload;
+    }
+
+    return;
+  }
+
+  const profileId = typeof args.profile_id === "string" ? args.profile_id : "";
+  if (!profileId) {
+    throw errorJson("validation_error", `Tool ${toolCall.name} requires profile_id.`, 400);
+  }
+
+  await loadAuthorizedProfile(request, policy.operation, profileId, tenantId, caller, storeOptions);
+}
+
 async function buildStoreRuntime(): Promise<{
   storeOptions: ProfileStoreOptions;
   backend: string;
@@ -1082,6 +1332,328 @@ const server = createServer(async (request, response) => {
     }
     const caller = callerValidation.context;
 
+    if (request.method === "GET" && url.pathname === "/v1/pson/tools/definitions") {
+      const authorization = authorizeCaller(caller, {
+        requiredRole: "viewer",
+        requiredScopes: ["system:read"],
+        operation: "tools-definitions"
+      });
+      if (!authorization.ok) {
+        await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+          operation: "tools-definitions",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          required_role: "viewer",
+          required_scopes: ["system:read"]
+        });
+        writePayload(response, authorization.payload);
+        return;
+      }
+
+      const definitions = getPsonAgentToolDefinitions();
+      await auditAllowed(request, storeRuntime.storeOptions, {
+        operation: "tools-definitions",
+        tenant_id: requestTenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        required_role: "viewer",
+        required_scopes: ["system:read"]
+      });
+      writePayload(response, json({ tools: definitions, format: "pson" }));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/pson/tools/openai") {
+      const authorization = authorizeCaller(caller, {
+        requiredRole: "viewer",
+        requiredScopes: ["system:read"],
+        operation: "tools-openai"
+      });
+      if (!authorization.ok) {
+        await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+          operation: "tools-openai",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          required_role: "viewer",
+          required_scopes: ["system:read"]
+        });
+        writePayload(response, authorization.payload);
+        return;
+      }
+
+      const definitions = toOpenAiStyleTools(getPsonAgentToolDefinitions());
+      await auditAllowed(request, storeRuntime.storeOptions, {
+        operation: "tools-openai",
+        tenant_id: requestTenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        required_role: "viewer",
+        required_scopes: ["system:read"]
+      });
+      writePayload(response, json({ tools: definitions, format: "openai" }));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/mcp") {
+      const body = (await readJson(request)) as JsonRpcRequestBody;
+      const id = body.id ?? null;
+
+      if (body.jsonrpc !== "2.0" || typeof body.method !== "string") {
+        writePayload(response, jsonRpcError(id, -32600, "Invalid JSON-RPC request."));
+        return;
+      }
+
+      if (body.method === "notifications/initialized") {
+        response.writeHead(204);
+        response.end();
+        return;
+      }
+
+      if (body.method === "initialize") {
+        const authorization = authorizeCaller(caller, {
+          requiredRole: "viewer",
+          requiredScopes: ["system:read"],
+          operation: "mcp-initialize"
+        });
+        if (!authorization.ok) {
+          await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+            operation: "mcp-initialize",
+            tenant_id: requestTenantId,
+            caller_id: caller.callerId,
+            subject_user_id: caller.subjectUserId,
+            caller_role: caller.role,
+            caller_scopes: [...caller.scopes],
+            required_role: "viewer",
+            required_scopes: ["system:read"]
+          });
+          writePayload(response, jsonRpcError(id, -32001, "Unauthorized.", authorization.payload));
+          return;
+        }
+
+        await auditAllowed(request, storeRuntime.storeOptions, {
+          operation: "mcp-initialize",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          required_role: "viewer",
+          required_scopes: ["system:read"]
+        });
+
+        writePayload(
+          response,
+          jsonRpcResult(id, {
+            protocolVersion: "2025-03-26",
+            capabilities: {
+              tools: {
+                listChanged: false
+              }
+            },
+            serverInfo: {
+              name: "@pson5/api",
+              version: "0.1.0"
+            }
+          })
+        );
+        return;
+      }
+
+      if (body.method === "ping") {
+        writePayload(response, jsonRpcResult(id, {}));
+        return;
+      }
+
+      if (body.method === "tools/list") {
+        const authorization = authorizeCaller(caller, {
+          requiredRole: "viewer",
+          requiredScopes: ["system:read"],
+          operation: "mcp-tools-list"
+        });
+        if (!authorization.ok) {
+          await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+            operation: "mcp-tools-list",
+            tenant_id: requestTenantId,
+            caller_id: caller.callerId,
+            subject_user_id: caller.subjectUserId,
+            caller_role: caller.role,
+            caller_scopes: [...caller.scopes],
+            required_role: "viewer",
+            required_scopes: ["system:read"]
+          });
+          writePayload(response, jsonRpcError(id, -32001, "Unauthorized.", authorization.payload));
+          return;
+        }
+
+        await auditAllowed(request, storeRuntime.storeOptions, {
+          operation: "mcp-tools-list",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          required_role: "viewer",
+          required_scopes: ["system:read"]
+        });
+
+        writePayload(response, jsonRpcResult(id, { tools: toMcpTools(getPsonAgentToolDefinitions()) }));
+        return;
+      }
+
+      if (body.method === "tools/call") {
+        const params = typeof body.params === "object" && body.params !== null ? body.params : {};
+        const name = params.name;
+        const args = typeof params.arguments === "object" && params.arguments !== null ? params.arguments : {};
+        const validToolNames = new Set(getPsonAgentToolDefinitions().map((tool) => tool.name));
+
+        if (typeof name !== "string" || !validToolNames.has(name as PsonAgentToolName)) {
+          writePayload(response, jsonRpcError(id, -32602, "Invalid tool call parameters."));
+          return;
+        }
+
+        const toolCall: PsonAgentToolCall = {
+          name: name as PsonAgentToolName,
+          arguments: args as Record<string, unknown>
+        };
+
+        try {
+          await authorizeToolCall(request, caller, requestTenantId, toolCall, storeRuntime.storeOptions);
+        } catch (payload) {
+          if (
+            typeof payload === "object" &&
+            payload !== null &&
+            "body" in payload &&
+            "statusCode" in payload &&
+            "headers" in payload
+          ) {
+            writePayload(response, jsonRpcError(id, -32001, "Unauthorized or invalid tool call.", payload));
+            return;
+          }
+
+          throw payload;
+        }
+
+        try {
+          const toolClient = new PsonClient();
+          const executor = createPsonAgentToolExecutor(toolClient, storeRuntime.storeOptions);
+          const result = await executor.execute(toolCall);
+          const policy = getToolRoutePolicy(toolCall.name);
+
+          await auditAllowed(request, storeRuntime.storeOptions, {
+            operation: `mcp-${policy.operation}`,
+            tenant_id: requestTenantId,
+            caller_id: caller.callerId,
+            subject_user_id: caller.subjectUserId,
+            caller_role: caller.role,
+            caller_scopes: [...caller.scopes],
+            profile_id: typeof toolCall.arguments.profile_id === "string" ? toolCall.arguments.profile_id : null,
+            user_id: typeof toolCall.arguments.user_id === "string" ? toolCall.arguments.user_id : null,
+            required_role: policy.requiredRole,
+            required_scopes: policy.requiredScopes
+          });
+
+          writePayload(
+            response,
+            jsonRpcResult(id, {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(result, null, 2)
+                }
+              ],
+              structuredContent: result
+            })
+          );
+          return;
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Tool execution failed.";
+          writePayload(response, jsonRpcError(id, -32002, message));
+          return;
+        }
+      }
+
+      writePayload(response, jsonRpcError(id, -32601, `Unsupported MCP method '${body.method}'.`));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/pson/tools/execute") {
+      const body = (await readJson(request)) as {
+        name?: PsonAgentToolName;
+        arguments?: Record<string, unknown>;
+      };
+
+      const validToolNames = new Set(getPsonAgentToolDefinitions().map((tool) => tool.name));
+      if (!body.name || !validToolNames.has(body.name)) {
+        writePayload(response, errorJson("validation_error", "A valid tool name is required.", 400));
+        return;
+      }
+
+      const toolCall: PsonAgentToolCall = {
+        name: body.name,
+        arguments:
+          typeof body.arguments === "object" && body.arguments !== null && !Array.isArray(body.arguments)
+            ? body.arguments
+            : {}
+      };
+
+      try {
+        await authorizeToolCall(request, caller, requestTenantId, toolCall, storeRuntime.storeOptions);
+      } catch (payload) {
+        if (
+          typeof payload === "object" &&
+          payload !== null &&
+          "body" in payload &&
+          "statusCode" in payload &&
+          "headers" in payload
+        ) {
+          writePayload(
+            response,
+            payload as { body: string; statusCode: number; headers: Record<string, string> }
+          );
+          return;
+        }
+
+        throw payload;
+      }
+
+      const toolClient = new PsonClient();
+      const executor = createPsonAgentToolExecutor(toolClient, storeRuntime.storeOptions);
+      const result = await executor.execute(toolCall);
+      const policy = getToolRoutePolicy(toolCall.name);
+
+      await auditAllowed(request, storeRuntime.storeOptions, {
+        operation: policy.operation,
+        tenant_id: requestTenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        profile_id: typeof toolCall.arguments.profile_id === "string" ? toolCall.arguments.profile_id : null,
+        user_id: typeof toolCall.arguments.user_id === "string" ? toolCall.arguments.user_id : null,
+        required_role: policy.requiredRole,
+        required_scopes: policy.requiredScopes
+      });
+
+      writePayload(
+        response,
+        json({
+          tool: toolCall.name,
+          result
+        })
+      );
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/v1/pson/provider/status") {
       const profileId = url.searchParams.get("profile_id");
       const operationParam = url.searchParams.get("operation");
@@ -1168,6 +1740,41 @@ const server = createServer(async (request, response) => {
         required_scopes: ["system:read"]
       });
       writePayload(response, json(getProviderStatusFromEnv(storeRuntime.storeOptions)));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/v1/pson/neo4j/status") {
+      const authorization = authorizeCaller(caller, {
+        requiredRole: "viewer",
+        requiredScopes: ["system:read"],
+        operation: "neo4j-status"
+      });
+      if (!authorization.ok) {
+        await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+          operation: "neo4j-status",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          required_role: "viewer",
+          required_scopes: ["system:read"]
+        });
+        writePayload(response, authorization.payload);
+        return;
+      }
+
+      await auditAllowed(request, storeRuntime.storeOptions, {
+        operation: "neo4j-status",
+        tenant_id: requestTenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        required_role: "viewer",
+        required_scopes: ["system:read"]
+      });
+      writePayload(response, json(await getNeo4jStatus(storeRuntime.storeOptions)));
       return;
     }
 
@@ -1336,7 +1943,10 @@ const server = createServer(async (request, response) => {
         required_role: "editor",
         required_scopes: ["profiles:write"]
       });
-      writePayload(response, json({ session_id: result.session.session_id, questions: result.questions }));
+      writePayload(
+        response,
+        json({ session_id: result.session.session_id, session: result.session, questions: result.questions })
+      );
       return;
     }
 
@@ -1417,6 +2027,7 @@ const server = createServer(async (request, response) => {
         response,
         json({
           session_id: result.session.session_id,
+          session: result.session,
           revision: result.profile.metadata.revision,
           updated_fields: result.updated_fields,
           next_questions: result.next_questions
@@ -1593,6 +2204,58 @@ const server = createServer(async (request, response) => {
         storeRuntime.storeOptions
       );
       writePayload(response, json(profile.knowledge_graph));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/v1/pson/neo4j/sync") {
+      const authorization = authorizeCaller(caller, {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write", "graph:write"],
+        operation: "neo4j-sync"
+      });
+      if (!authorization.ok) {
+        await auditDenied(request, storeRuntime.storeOptions, authorization.payload, {
+          operation: "neo4j-sync",
+          tenant_id: requestTenantId,
+          caller_id: caller.callerId,
+          subject_user_id: caller.subjectUserId,
+          caller_role: caller.role,
+          caller_scopes: [...caller.scopes],
+          required_role: "editor",
+          required_scopes: ["profiles:write", "graph:write"]
+        });
+        writePayload(response, authorization.payload);
+        return;
+      }
+
+      const body = (await readJson(request)) as { profile_id?: string };
+      if (!body.profile_id) {
+        writePayload(response, errorJson("validation_error", "profile_id is required.", 400));
+        return;
+      }
+
+      const profile = await loadAuthorizedProfile(
+        request,
+        "neo4j-sync",
+        body.profile_id,
+        requestTenantId,
+        caller,
+        storeRuntime.storeOptions
+      );
+      const syncResult = await syncStoredProfileKnowledgeGraph(profile.profile_id, storeRuntime.storeOptions);
+      await auditAllowed(request, storeRuntime.storeOptions, {
+        operation: "neo4j-sync",
+        tenant_id: requestTenantId,
+        caller_id: caller.callerId,
+        subject_user_id: caller.subjectUserId,
+        caller_role: caller.role,
+        caller_scopes: [...caller.scopes],
+        profile_id: profile.profile_id,
+        user_id: profile.user_id,
+        required_role: "editor",
+        required_scopes: ["profiles:write", "graph:write"]
+      });
+      writePayload(response, json(syncResult));
       return;
     }
 

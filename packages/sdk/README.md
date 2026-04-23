@@ -30,6 +30,19 @@ const next = await client.getNextQuestions(profile.profile_id, { limit: 1 });
 - question flow and learning
 - simulation
 - agent-context projection
+- framework-consumable agent tool definitions and executor helpers
 - provider config and policy inspection
 - domain module registration
 - user-id based profile lookup
+
+## Agent Examples
+
+- `examples/agent-tools/sdk-agent-loop.ts`
+- `examples/agent-tools/pson-sdk-tools.ts`
+- `examples/agent-tools/openai-function-tools.ts`
+
+## Important Clarification
+
+The SDK is not the model runtime itself.
+
+`@pson5/sdk` orchestrates PSON operations. Optional provider-backed language reasoning lives under the provider engine when configured and allowed by policy.

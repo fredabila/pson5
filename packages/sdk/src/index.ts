@@ -23,6 +23,13 @@ import {
 import { buildAgentContext, buildStoredAgentContext } from "@pson5/agent-context";
 import { explainPredictionSupport } from "@pson5/graph-engine";
 import {
+  clearStoredNeo4jConfig,
+  getNeo4jStatus,
+  getStoredNeo4jConfig,
+  saveNeo4jConfig,
+  syncStoredProfileKnowledgeGraph
+} from "@pson5/neo4j-store";
+import {
   clearStoredProviderConfig,
   getProviderPolicyStatus,
   getProviderStatusFromEnv,
@@ -135,6 +142,44 @@ export class PsonClient {
     return getStoredProviderConfig(options);
   }
 
+  public getNeo4jConfig(options?: ProfileStoreOptions) {
+    return getStoredNeo4jConfig(options);
+  }
+
+  public async getNeo4jStatus(options?: ProfileStoreOptions) {
+    return getNeo4jStatus(options);
+  }
+
+  public saveNeo4jConfig(
+    input: {
+      uri: string;
+      username: string;
+      password: string;
+      database?: string | null;
+      enabled?: boolean;
+    },
+    options?: ProfileStoreOptions
+  ) {
+    return saveNeo4jConfig(
+      {
+        uri: input.uri,
+        username: input.username,
+        password: input.password,
+        database: input.database ?? null,
+        enabled: input.enabled ?? true
+      },
+      options
+    );
+  }
+
+  public clearNeo4jConfig(options?: ProfileStoreOptions) {
+    return clearStoredNeo4jConfig(options);
+  }
+
+  public async syncProfileGraph(profileId: string, options?: ProfileStoreOptions) {
+    return syncStoredProfileKnowledgeGraph(profileId, options);
+  }
+
   public async configureProvider(
     input: {
       provider: AiProviderName;
@@ -188,3 +233,14 @@ export class PsonClient {
     return profile.layers.inferred[key] ?? profile.layers.observed[key] ?? null;
   }
 }
+
+export {
+  createPsonAgentToolExecutor,
+  getPsonAgentToolDefinitions
+} from "./agent-tools.js";
+export type {
+  PsonAgentToolCall,
+  PsonAgentToolDefinition,
+  PsonAgentToolExecutor,
+  PsonAgentToolName
+} from "./agent-tools.js";

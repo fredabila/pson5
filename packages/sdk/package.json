@@ -49,6 +49,7 @@
     "@pson5/agent-context": "0.1.0",
     "@pson5/core-types": "0.1.0",
     "@pson5/graph-engine": "0.1.0",
+    "@pson5/neo4j-store": "0.1.0",
     "@pson5/provider-engine": "0.1.0",
     "@pson5/serialization-engine": "0.1.0",
     "@pson5/simulation-engine": "0.1.0",

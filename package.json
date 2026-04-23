@@ -36,7 +36,7 @@
     "docs:check": "npm run check --workspace @pson5/docs-site",
     "test:storage": "node tests/integration/storage-adapter-contract.mjs",
     "test:postgres-store": "node tests/integration/postgres-store-contract.mjs",
-    "pack:publishable": "npm pack --workspace @pson5/core-types --workspace @pson5/schemas --workspace @pson5/privacy --workspace @pson5/serialization-engine --workspace @pson5/provider-engine --workspace @pson5/modeling-engine --workspace @pson5/state-engine --workspace @pson5/graph-engine --workspace @pson5/simulation-engine --workspace @pson5/acquisition-engine --workspace @pson5/agent-context --workspace @pson5/sdk --workspace @pson5/postgres-store --workspace @pson5/cli"
+    "pack:publishable": "npm pack --workspace @pson5/core-types --workspace @pson5/schemas --workspace @pson5/privacy --workspace @pson5/serialization-engine --workspace @pson5/provider-engine --workspace @pson5/modeling-engine --workspace @pson5/state-engine --workspace @pson5/graph-engine --workspace @pson5/neo4j-store --workspace @pson5/simulation-engine --workspace @pson5/acquisition-engine --workspace @pson5/agent-context --workspace @pson5/sdk --workspace @pson5/postgres-store --workspace @pson5/cli"
   },
   "engines": {
     "node": ">=20"

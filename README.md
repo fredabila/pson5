@@ -8,6 +8,7 @@ PSON5 is an open-source personalization infrastructure stack for AI systems. It 
 - core engines for acquisition, modeling, simulation, state, graph, serialization, privacy, and provider integration
 - TypeScript SDK for apps and agents
 - CLI for local workflows and interactive profile operations
+- Neo4j-backed graph sync and status tooling
 - HTTP API for service integration
 - web console and public landing page
 - documentation site in `apps/docs-site`
@@ -39,6 +40,7 @@ packages/
   modeling-engine/
   state-engine/
   graph-engine/
+  neo4j-store/
   simulation-engine/
   acquisition-engine/
   agent-context/
@@ -55,6 +57,10 @@ docs/
   usage/
 tests/
   integration/
+skills/
+  pson-agent/
+examples/
+  agent-tools/
 ```
 
 ## Publishable Packages
@@ -67,6 +73,7 @@ tests/
 - `@pson5/modeling-engine`
 - `@pson5/state-engine`
 - `@pson5/graph-engine`
+- `@pson5/neo4j-store`
 - `@pson5/simulation-engine`
 - `@pson5/acquisition-engine`
 - `@pson5/agent-context`
@@ -126,6 +133,9 @@ Repo docs:
 - [docs/usage/api-quickstart.md](./docs/usage/api-quickstart.md)
 - [docs/usage/agent-integration.md](./docs/usage/agent-integration.md)
 - [docs/usage/agent-context.md](./docs/usage/agent-context.md)
+- [docs/usage/pson-agent-skill.md](./docs/usage/pson-agent-skill.md)
+- [docs/usage/agent-tools.md](./docs/usage/agent-tools.md)
+- [docs/usage/agent-auth.md](./docs/usage/agent-auth.md)
 
 Docs app:
 

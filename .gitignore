@@ -11,3 +11,4 @@ coverage/
 .pson5-store*/
 apps/api/.pson5-store/
 apps/api/.pson5-store*/
+.claude/

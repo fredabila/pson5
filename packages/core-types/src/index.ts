@@ -179,6 +179,10 @@ export interface QuestionDefinition {
   information_targets: string[];
   follow_up_rules: string[];
   choices?: QuestionChoice[];
+  generated_by?: "registry" | "provider";
+  answer_style_hint?: string;
+  source_question_id?: string;
+  generation_rationale?: string;
 }
 
 export interface DomainModuleDefinition {
@@ -195,6 +199,17 @@ export interface LearningSessionState {
   depth: PsonDepth;
   asked_question_ids: string[];
   answered_question_ids: string[];
+  generated_questions?: QuestionDefinition[];
+  contradiction_flags?: Array<{
+    target: string;
+    previous_value: unknown;
+    incoming_value: unknown;
+    question_id: string;
+    detected_at: string;
+  }>;
+  confidence_gaps?: string[];
+  fatigue_score?: number;
+  stop_reason?: string | null;
   status: "active" | "completed";
   created_at: string;
   updated_at: string;
@@ -214,6 +229,7 @@ export interface AnswerSubmission {
 export interface ObservedAnswerRecord {
   source_id: string;
   question_id: string;
+  source_question_id?: string;
   domain: string;
   prompt: string;
   raw_value: string | number | boolean | string[];
@@ -300,6 +316,44 @@ export interface AiProviderStatus extends AiProviderConfig {
   reason?: string;
   capabilities: string[];
   source?: ProviderConfigSource;
+}
+
+export interface Neo4jConfig {
+  uri: string | null;
+  username: string | null;
+  password?: string;
+  database?: string | null;
+  enabled: boolean;
+}
+
+export interface Neo4jStoredConfigStatus extends Neo4jConfig {
+  path: string;
+  configured: boolean;
+  has_password: boolean;
+  source: "env" | "file" | "none";
+}
+
+export interface Neo4jStatus {
+  configured: boolean;
+  enabled: boolean;
+  connected: boolean;
+  uri: string | null;
+  database: string | null;
+  username: string | null;
+  source: "env" | "file" | "none";
+  reason?: string;
+  server_agent?: string;
+  server_protocol_version?: string;
+}
+
+export interface Neo4jSyncResult {
+  profile_id: string;
+  user_id: string;
+  node_count: number;
+  edge_count: number;
+  uri: string | null;
+  database: string | null;
+  synced_at: string;
 }
 
 export interface ProviderPolicyDecision {

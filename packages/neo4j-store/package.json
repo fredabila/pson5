@@ -1,0 +1,51 @@
+{
+  "name": "@pson5/neo4j-store",
+  "version": "0.1.0",
+  "description": "Neo4j graph persistence, configuration, and sync helpers for PSON5 knowledge graphs.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fredabila/pson5.git",
+    "directory": "packages/neo4j-store"
+  },
+  "homepage": "https://github.com/fredabila/pson5/tree/main/packages/neo4j-store#readme",
+  "bugs": {
+    "url": "https://github.com/fredabila/pson5/issues"
+  },
+  "type": "module",
+  "main": "./dist/neo4j-store/src/index.js",
+  "types": "./dist/neo4j-store/src/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/neo4j-store/src/index.d.ts",
+      "default": "./dist/neo4j-store/src/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "pson",
+    "neo4j",
+    "graph",
+    "knowledge-graph",
+    "storage"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@pson5/core-types": "0.1.0",
+    "@pson5/serialization-engine": "0.1.0",
+    "neo4j-driver": "^6.0.1"
+  }
+}

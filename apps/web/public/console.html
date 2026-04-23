@@ -3,64 +3,66 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PSON5 Console</title>
+    <title>PSON5 Dashboard</title>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="page-shell">
-      <header class="topbar">
-        <div class="brand-block">
-          <p class="kicker">PSON5 Console</p>
-          <h1>Cognitive profile operations desk</h1>
+    <div class="dashboard-shell">
+      <header class="dashboard-topbar">
+        <div class="topbar-copy">
+          <p class="eyebrow">PSON5 Dashboard</p>
+          <h1>Operate the personalization stack from one coherent workspace.</h1>
           <p class="lede">
-            Inspect profiles, run learning, enforce provider policy, export safely, and test simulations from one
-            coherent surface.
+            Create profiles, inspect observed and inferred layers, run adaptive learning, simulate behavior, check
+            provider policy, and export safely.
           </p>
-          <div class="brand-actions">
-            <a href="/" class="nav-link">Back To Landing</a>
-          </div>
         </div>
-        <div class="status-grid">
-          <article class="status-card">
-            <span class="status-label">API</span>
-            <strong id="current-api">/api</strong>
-          </article>
-          <article class="status-card">
-            <span class="status-label">Profile</span>
-            <strong id="current-profile">None loaded</strong>
-          </article>
-          <article class="status-card">
-            <span class="status-label">Session</span>
-            <strong id="current-session">No session</strong>
-          </article>
-          <article class="status-card">
-            <span class="status-label">Provider</span>
-            <strong id="provider-brief">Unknown</strong>
-          </article>
+        <div class="topbar-actions">
+          <a href="/" class="ghost-link">Landing</a>
+          <a href="/access" class="ghost-link">Access Gate</a>
         </div>
       </header>
 
-      <main class="workspace">
-        <aside class="control-rail">
-          <section class="panel rail-panel">
+      <div class="status-strip">
+        <article class="status-tile">
+          <span>API</span>
+          <strong id="current-api">/api</strong>
+        </article>
+        <article class="status-tile">
+          <span>Profile</span>
+          <strong id="current-profile">None loaded</strong>
+        </article>
+        <article class="status-tile">
+          <span>Session</span>
+          <strong id="current-session">No session</strong>
+        </article>
+        <article class="status-tile">
+          <span>Provider</span>
+          <strong id="provider-brief">Unknown</strong>
+        </article>
+      </div>
+
+      <main class="dashboard-grid">
+        <aside class="command-rail">
+          <section class="panel">
             <div class="panel-head">
-              <h2>Connection</h2>
-              <span class="tag">Config</span>
+              <h2>Workspace</h2>
+              <span class="tag">Connection</span>
             </div>
             <div class="stack">
               <label class="field">
                 <span>API base</span>
                 <input id="api-origin" type="text" />
               </label>
-              <button id="save-config" type="button">Use API Target</button>
+              <button id="save-config" type="button">Apply API Target</button>
               <p id="config-status" class="caption">Loading config...</p>
             </div>
           </section>
 
-          <section class="panel rail-panel">
+          <section class="panel">
             <div class="panel-head">
-              <h2>Profile</h2>
-              <span class="tag">Init</span>
+              <h2>Create or Load</h2>
+              <span class="tag">Profiles</span>
             </div>
             <form id="init-form" class="stack">
               <label class="field">
@@ -93,9 +95,9 @@
             </form>
           </section>
 
-          <section class="panel rail-panel">
+          <section class="panel">
             <div class="panel-head">
-              <h2>Learning</h2>
+              <h2>Adaptive Learning</h2>
               <span class="tag">Acquire</span>
             </div>
             <form id="question-form" class="stack">
@@ -120,14 +122,14 @@
                 <input id="answer-question-id" type="text" required />
               </label>
               <label class="field">
-                <span>Answer value</span>
-                <input id="answer-value" type="text" required />
+                <span>Natural-language answer</span>
+                <textarea id="answer-value" rows="4" placeholder="Answer naturally. PSON will normalize where possible." required></textarea>
               </label>
               <button type="submit" class="secondary">Submit Answer</button>
             </form>
           </section>
 
-          <section class="panel rail-panel">
+          <section class="panel">
             <div class="panel-head">
               <h2>Simulation</h2>
               <span class="tag">Predict</span>
@@ -161,15 +163,37 @@
         </aside>
 
         <section class="main-stage">
-          <section class="panel summary-panel">
-            <div class="panel-head">
-              <h2>Profile Snapshot</h2>
-              <span class="tag">Overview</span>
+          <section class="hero-panel">
+            <div>
+              <p class="eyebrow">Profile Snapshot</p>
+              <h2 id="hero-headline">Load a profile to activate the dashboard.</h2>
+              <p id="hero-subcopy" class="hero-subcopy">
+                The dashboard will surface acquisition signals, provider policy, simulation output, and profile layers.
+              </p>
             </div>
             <div id="summary-cards" class="summary-grid"></div>
           </section>
 
-          <section class="stage-grid">
+          <section class="insight-grid">
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Current Question</h2>
+                <span class="tag">Adaptive</span>
+              </div>
+              <div id="question-brief" class="brief-card empty">No question fetched yet.</div>
+              <pre id="question-output" class="console empty">The raw question payload will appear here.</pre>
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <h2>Session Intelligence</h2>
+                <span class="tag">Signals</span>
+              </div>
+              <div id="session-intelligence" class="signal-stack empty">
+                Fetch a question to inspect fatigue, confidence gaps, contradictions, and stop logic.
+              </div>
+            </section>
+
             <section class="panel">
               <div class="panel-head">
                 <h2>Provider Control</h2>
@@ -207,25 +231,32 @@
                 <pre id="export-output" class="console empty">Run an export to inspect the serialized profile.</pre>
               </div>
             </section>
+          </section>
 
-            <section class="panel wide-panel">
-              <div class="panel-head">
-                <h2>Latest Question</h2>
-                <span class="tag">Session</span>
-              </div>
-              <pre id="question-output" class="console empty">No active question fetched yet.</pre>
-            </section>
+          <section class="panel simulation-panel">
+            <div class="panel-head">
+              <h2>Simulation Result</h2>
+              <span class="tag">Reasoning</span>
+            </div>
+            <div id="simulation-brief" class="simulation-shell empty">
+              Run a simulation to inspect prediction, provider mode, confidence, reasoning, and alternatives.
+            </div>
+            <pre id="simulation-output" class="console empty">Raw simulation payload appears here after execution.</pre>
+          </section>
 
-            <section class="panel wide-panel">
-              <div class="panel-head">
-                <h2>Simulation Result</h2>
-                <span class="tag">Reasoning</span>
-              </div>
-              <div id="simulation-brief" class="simulation-shell empty">
-                Run a simulation to inspect prediction, provider mode, confidence, reasoning, and alternatives.
-              </div>
-              <pre id="simulation-output" class="console empty">Raw simulation payload appears here after execution.</pre>
-            </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h2>Agent Context</h2>
+              <span class="tag">Projection</span>
+            </div>
+            <form id="agent-form" class="inline-form">
+              <label class="field">
+                <span>Intent</span>
+                <input id="agent-intent" type="text" value="general_assistance" />
+              </label>
+              <button id="build-agent-context" type="submit">Build Agent Context</button>
+            </form>
+            <pre id="agent-output" class="console empty">Build the standardized agent-facing projection for the current profile.</pre>
           </section>
 
           <section class="panel">
@@ -264,7 +295,7 @@
             </div>
 
             <div class="pane" id="explain-pane">
-              <form id="explain-form" class="stack compact-form">
+              <form id="explain-form" class="inline-form">
                 <label class="field">
                   <span>Prediction</span>
                   <input id="prediction-id" type="text" placeholder="delayed_start" />

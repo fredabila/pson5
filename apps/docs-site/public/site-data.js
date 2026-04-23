@@ -211,6 +211,70 @@ const context = await client.getAgentContext(profile.profile_id, {
 const context = await client.getAgentContext(profile.profile_id, { intent: "tutoring" });
 const next = await client.getNextQuestions(profile.profile_id, { limit: 1 });</code></pre>
           `
+        },
+        {
+          slug: "sdk/agent-skill",
+          title: "Agent Skill",
+          summary: "Why agents need a stable PSON skill/tool contract and what that contract should enforce.",
+          content: `
+            <h2 id="why-skill">Why a skill helps</h2>
+            <p>An agent will not reliably infer the right PSON behavior just because the SDK exists. A stable skill or tool contract prevents raw-profile overuse, bad writeback patterns, and misuse of simulation output.</p>
+            <h2 id="default-rules">Default rules</h2>
+            <ul>
+              <li>use <code>getAgentContext(...)</code> by default</li>
+              <li>ask the next question only when uncertainty matters</li>
+              <li>write user answers back with <code>learn(...)</code></li>
+              <li>treat simulation as probabilistic support</li>
+              <li>do not mutate raw profile JSON directly</li>
+            </ul>
+            <h2 id="where-llm-lives">Where the LLM lives</h2>
+            <p>The SDK is not itself the model runtime. PSON orchestrates the profile lifecycle. Provider-backed language reasoning lives behind the provider engine when configured and allowed by policy.</p>
+            <h2 id="repo-artifacts">Repo artifacts</h2>
+            <ul>
+              <li><code>skills/pson-agent/SKILL.md</code></li>
+              <li><code>examples/agent-tools/pson-sdk-tools.ts</code></li>
+              <li><code>docs/usage/pson-agent-skill.md</code></li>
+            </ul>
+          `
+        },
+        {
+          slug: "sdk/agent-tools",
+          title: "Agent Tools",
+          summary: "Framework-consumable PSON tool definitions and executor helpers.",
+          content: `
+            <h2 id="sdk-exports">SDK exports</h2>
+            <ul>
+              <li><code>getPsonAgentToolDefinitions()</code></li>
+              <li><code>createPsonAgentToolExecutor(client, storeOptions)</code></li>
+            </ul>
+            <h2 id="tool-names">Included tool names</h2>
+            <ul>
+              <li><code>pson_load_profile_by_user_id</code></li>
+              <li><code>pson_create_profile</code></li>
+              <li><code>pson_get_agent_context</code></li>
+              <li><code>pson_get_next_questions</code></li>
+              <li><code>pson_learn</code></li>
+              <li><code>pson_simulate</code></li>
+              <li><code>pson_get_provider_policy</code></li>
+            </ul>
+            <h2 id="shape">Definition shape</h2>
+            <pre><code>{
+  type: "function",
+  name,
+  description,
+  input_schema
+}</code></pre>
+            <h2 id="framework-mapping">Framework mapping</h2>
+            <p>You can map <code>input_schema</code> directly into the JSON-schema field expected by your agent framework. For OpenAI-style function tools, rename it to <code>parameters</code>.</p>
+            <h2 id="examples">Examples</h2>
+            <ul>
+              <li><code>examples/agent-tools/pson-sdk-tools.ts</code></li>
+              <li><code>examples/agent-tools/sdk-agent-loop.ts</code></li>
+              <li><code>examples/agent-tools/openai-function-tools.ts</code></li>
+            </ul>
+            <h2 id="auth-note">Auth note</h2>
+            <p>The SDK itself does not provide remote auth. If an agent is remote, use the API tool endpoints or MCP transport and authenticate there.</p>
+          `
         }
       ]
     },
@@ -229,9 +293,18 @@ const next = await client.getNextQuestions(profile.profile_id, { limit: 1 });</c
               <li>simulation and explainability</li>
               <li>agent context projection</li>
               <li>provider status</li>
+              <li>remote tool server definitions and execution</li>
             </ul>
             <h2 id="backend-modes">Backend modes</h2>
             <pre><code>PSON_STORE_BACKEND=file|memory|postgres</code></pre>
+            <h2 id="remote-tool-server">Remote tool server</h2>
+            <ul>
+              <li><code>GET /v1/pson/tools/definitions</code></li>
+              <li><code>GET /v1/pson/tools/openai</code></li>
+              <li><code>POST /v1/pson/tools/execute</code></li>
+            </ul>
+            <h2 id="mcp-transport">MCP transport</h2>
+            <p>The API also exposes a minimal MCP-style JSON-RPC endpoint at <code>POST /v1/mcp</code> with <code>initialize</code>, <code>ping</code>, <code>tools/list</code>, and <code>tools/call</code>.</p>
           `
         },
         {
@@ -257,6 +330,30 @@ const next = await client.getNextQuestions(profile.profile_id, { limit: 1 });</c
             <h2 id="audit-log">Audit log</h2>
             <pre><code>.pson5-store/audit/api-access.jsonl</code></pre>
           `
+        },
+        {
+          slug: "api/agent-transports",
+          title: "Agent Transports",
+          summary: "How SDK, HTTP tools, MCP over HTTP, and stdio MCP fit together.",
+          content: `
+            <h2 id="transport-choice">Transport choice</h2>
+            <ul>
+              <li>SDK for in-process backend agents</li>
+              <li>HTTP tools for remote agents</li>
+              <li>MCP over HTTP for MCP-style remote integrations</li>
+              <li>stdio MCP for local machine integrations</li>
+            </ul>
+            <h2 id="remote-auth">Remote auth</h2>
+            <p>HTTP tools and MCP over HTTP use the same API auth boundary: API key, signed JWT, tenant enforcement, subject-user binding, and role/scope checks.</p>
+            <h2 id="local-mcp">Local MCP</h2>
+            <p>stdio MCP does not use the API auth layer. It relies on the local process boundary and the permissions around the local store path.</p>
+            <h2 id="examples">Examples</h2>
+            <ul>
+              <li><code>examples/agent-tools/http-tool-client.ts</code></li>
+              <li><code>examples/agent-tools/mcp-http-client.ts</code></li>
+              <li><code>examples/agent-tools/sdk-agent-loop.ts</code></li>
+            </ul>
+          `
         }
       ]
     },
@@ -272,9 +369,11 @@ const next = await client.getNextQuestions(profile.profile_id, { limit: 1 });</c
             <ul>
               <li>one-shot command mode</li>
               <li>interactive console mode</li>
+              <li>local stdio MCP mode</li>
             </ul>
             <h2 id="common-commands">Common commands</h2>
             <pre><code>pson console --store .pson5-store
+pson mcp-stdio --store .pson5-store
 pson init user_123
 pson question-next &lt;profileId&gt;
 pson simulate &lt;profileId&gt; --context "{...}"</code></pre>
