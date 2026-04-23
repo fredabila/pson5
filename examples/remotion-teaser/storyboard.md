@@ -1,7 +1,7 @@
 # PSON5 teaser — storyboard
 
 **Working title:** *Your agent doesn't know you*
-**Length:** 60 seconds (1800 frames @ 30fps)
+**Length:** ~74 seconds (2220 frames @ 30fps) — v2 adds a knowledge-graph and benchmarks scene
 **Format:** 1920 × 1080, H.264 MP4
 **Aesthetic:** Dark editorial — matches the PSON5 landing. Fraunces for display, Inter for UI, JetBrains Mono for labels/code. Phosphor-green accent `#b6ff5c`. The signature three-colour grammar runs through the whole piece: **observed = amber** `#f5c76a`, **inferred = phosphor green** `#b6ff5c`, **simulated = cool blue** `#8ec7ff`.
 
@@ -109,7 +109,26 @@ Dotted lines animate up from the inferred pills into the prediction card.
 
 ---
 
-## Scene 4 · LOOP IN ACTION — 0:28 – 0:38 · 300f
+## Scene 3b · KNOWLEDGE GRAPH — 0:28 – 0:35 · 210f  *(new in v2)*
+
+**Canvas** The three lanes collapse inward. A zoomed-out force-directed graph takes over — deterministic layout, same three-colour grammar.
+
+**Node taxonomy**
+- Centre: `josh` (root, ink-0 with accent glow)
+- Observed facts radiate first: `primary_language=rust`, `turned_down_faang=true`, `favorite_stage=early_stage`, `os_project_stars=1.2k`, `runway_months=?`
+- Inferred traits appear one hop in: `technical_autonomy`, `deadline_driven`, `optionality_over_stability`
+- One simulated scenario attaches at the periphery: `series_a_offer`
+
+**0:28 – 0:30** Eyebrow `KNOWLEDGE GRAPH · HOW TRAITS CONNECT`. Fraunces headline fades in:
+> Every inference *traces back* to evidence.
+
+**0:30 – 0:33** Edges draw in sequentially — root→observed first, then observed→inferred, then inferred→simulated. Nodes arrive shortly after their first connecting edge lands.
+
+**0:33 – 0:35** Legend fades in at the bottom. A soft tick sound accompanies each edge attachment.
+
+---
+
+## Scene 4 · LOOP IN ACTION — 0:35 – 0:45 · 300f
 
 **Canvas** Left third: a clean chat UI with three exchanged messages visible. Right two-thirds: the three lanes stay visible but scaled down.
 
@@ -142,7 +161,7 @@ By Day 30 the scene looks visibly richer — ~20 observed cards, ~8 trait pills,
 
 ---
 
-## Scene 5 · THE DECISION — 0:38 – 0:48 · 300f
+## Scene 5 · THE DECISION — 0:45 – 0:55 · 300f
 
 **Canvas** Back to a clean chat-only view (the lanes slide off-screen). Chat bubble spacing a bit more generous — this is where the agent earns its keep.
 
@@ -169,7 +188,27 @@ The pill is the only element with colour. It's the "show your work" moment that 
 
 ---
 
-## Scene 6 · TAGLINE — 0:48 – 0:54 · 180f
+## Scene 5b · BENCHMARKS — 0:55 – 1:02 · 210f  *(new in v2)*
+
+**Canvas** Left-aligned title block over a calm backdrop. Three animated horizontal bars fill up beside real measurements.
+
+**0:55 – 0:57** Eyebrow `BENCHMARKS · REFERENCE WORKLOADS`. Fraunces headline:
+> Fast enough to *not matter*.
+
+Small mono meta underneath states either the measurement date + platform (when `public/benchmarks.json` was regenerated locally) or `reference workload · run npm run bench in your env` as a fallback.
+
+**0:57 – 1:02** Three bars reveal in sequence — amber (observed / merge), phosphor (inferred / simulate), blue (simulated / serialize). Each bar:
+
+- Shows the label in mono eyebrow style
+- Fills proportionally to the goal ceiling
+- A numeric counter rolls up from 0 → the real median
+- A thin goal marker sits at `goalMs` so "under-budget" is visually obvious
+
+Numbers come from `scripts/benchmark.mjs` — merge 5000 trait candidates, simulate 1000 decisions, round-trip 1000 facts. Each sample is median-of-6 after 2 warmups. On a 2024 consumer laptop the full suite lands ≤ 10ms total.
+
+---
+
+## Scene 6 · TAGLINE — 1:02 – 1:08 · 180f
 
 **Canvas** Full-width hero. The three lanes return, with particles flowing at different tempos (6s / 4.5s / 8s) — matches the landing page's hero SVG.
 
@@ -181,7 +220,7 @@ The pill is the only element with colour. It's the "show your work" moment that 
 
 ---
 
-## Scene 7 · OUTRO — 0:54 – 1:00 · 180f
+## Scene 7 · OUTRO — 1:08 – 1:14 · 180f
 
 **Canvas** Fade lanes out. Wordmark pops in, centered.
 
@@ -228,9 +267,20 @@ The pill is the only element with colour. It's the "show your work" moment that 
 - **Particle flow** on layer lanes runs continuously throughout a scene, not starting/stopping with text.
 - **Fade to black** between scenes on hard cuts; **cross-dissolve** when the layout is changing by ≤30%.
 
-## Sound (optional, if a v2 adds audio)
+## Sound  *(v2)*
 
-Nothing overbearing. A single low-frequency pad (~60Hz) swelling in scene 6 and sustaining through the outro would be enough. No UI click SFX. Let the type carry the rhythm.
+Two generators, committed via script and not as binary blobs:
+
+**Music bed — `scripts/generate-music-lyria.mjs`.** Calls Google DeepMind's Lyria 2 model on Vertex AI (`lyria-002`) with a dark-ambient prompt, takes the three returned 30-second clips, and stitches them into a ~90-second bed with 4-second equal-power crossfades plus head/tail fades. Output: `public/audio/ambient.wav`. Response cached at `.cache/lyria/<hash>.json` so re-renders don't re-bill. Prompt is tuned to avoid artist-name references (Lyria filters those) and emphasises "slow evolving synthesizer pad, minor key, electronic, minimal, textural" — the aesthetic matches the dark-editorial palette.
+
+**SFX layer — `scripts/generate-audio.mjs`.** Procedural DSP, four one-shots:
+
+- **`whoosh.wav`** — 0.6s noise burst with a cutoff sweep 2500Hz → 300Hz. Triggered on every scene wipe.
+- **`tick.wav`** — 120ms two-voice pop (820Hz + 1240Hz) with fast exponential decay. Fires on three-layer reveals, graph edge attachments, and benchmark bar landings.
+- **`impact.wav`** — 400ms sub-pitch slide 90Hz → 42Hz with a filtered noise click. Hits on the title reveal.
+- **`chime.wav`** — 900ms four-partial bell (A5 + E6 + A6 + E7) with staggered decay. Lands on the outro wordmark.
+
+Mix targets: music bed at 0.55, whooshes at 0.50, ticks at 0.3–0.45, impact/chime at 0.52–0.55. Measured peak for the rendered first 10s lands around −11 dB with a −33 dB mean — plenty of headroom for voiceover if one is ever added.
 
 ---
 

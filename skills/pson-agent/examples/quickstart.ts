@@ -1,8 +1,7 @@
 /**
  * PSON5 agent quickstart — the four-line starter.
  *
- * Prerequisite: the repo is cloned, built, and linked (`npm install && npm run build`).
- * A provider key is optional.
+ * Prerequisite: `npm install @pson5/sdk` in your project. A provider key is optional.
  *
  * What this does:
  *   - creates a profile for `user_123`

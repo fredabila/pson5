@@ -24,14 +24,7 @@ function sendJson(response, statusCode, value) {
 }
 
 async function serveStatic(pathname, response) {
-  const normalizedPath =
-    pathname === "/"
-      ? "/index.html"
-      : pathname === "/console"
-        ? "/console.html"
-        : pathname === "/access"
-          ? "/access.html"
-          : pathname;
+  const normalizedPath = pathname === "/" ? "/index.html" : pathname;
   const filePath = normalize(join(publicDir, normalizedPath));
 
   if (!filePath.startsWith(publicDir)) {

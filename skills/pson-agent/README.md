@@ -7,7 +7,7 @@ This directory is a self-contained agent skill for PSON5. Drop it into any agent
 ```
 pson-agent/
 ├── SKILL.md                    ← entry point; read this first
-├── setup.md                    ← zero-to-running in ~10 minutes
+├── setup.md                    ← zero-to-running via `npx @pson5/cli` (no clone)
 ├── README.md                   ← this file
 ├── reference/
 │   ├── transports.md           ← SDK · API · CLI · MCP side by side

@@ -4,21 +4,24 @@ import { COLORS, FONT } from "../style/tokens";
 type Props = {
   label: string;
   color?: string;
+  accent?: string;
   size?: number;
 };
 
 /**
  * Mono eyebrow with a short hairline prefix — matches the landing's eyebrow
- * style exactly. Use sparingly; one per visual block.
+ * style exactly. Use sparingly; one per visual block. Pass `accent` to
+ * colour both the hairline prefix and the label with a bright accent.
  */
-export const Eyebrow: React.FC<Props> = ({ label, color = COLORS.ink2, size = 16 }) => {
+export const Eyebrow: React.FC<Props> = ({ label, color, accent, size = 16 }) => {
+  const effectiveColor = accent ?? color ?? COLORS.ink2;
   return (
     <div
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 12,
-        color,
+        color: effectiveColor,
         fontFamily: FONT.mono,
         fontSize: size,
         letterSpacing: "0.2em",
@@ -30,7 +33,7 @@ export const Eyebrow: React.FC<Props> = ({ label, color = COLORS.ink2, size = 16
         style={{
           width: 24,
           height: 1,
-          background: color === COLORS.ink2 ? COLORS.ink3 : color,
+          background: effectiveColor === COLORS.ink2 ? COLORS.ink3 : effectiveColor,
           display: "inline-block"
         }}
       />

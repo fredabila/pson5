@@ -1,25 +1,30 @@
 import React from "react";
-import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
-import { COLORS, FONT } from "../style/tokens";
-import { ChatBubble } from "../components/ChatBubble";
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { COLORS, FONT, SPRING_SOFT } from "../style/tokens";
+import { PhoneFrame } from "../components/PhoneFrame";
+import { MacWindow } from "../components/MacWindow";
+import { StatusBar } from "../components/StatusBar";
+import { AppHeader } from "../components/AppHeader";
+import { MessageBubble } from "../components/MessageBubble";
 import { DataCard } from "../components/DataCard";
 import { TraitPill } from "../components/TraitPill";
-import { Eyebrow } from "../components/Eyebrow";
 import { TimeMarker } from "../components/TimeMarker";
+import { Eyebrow } from "../components/Eyebrow";
+import { CursorArrow } from "../components/CursorArrow";
 
 /**
- * 0:28 – 0:38 · Passive extraction during natural conversation.
- *
- * Left: chat UI with casual exchange. Right: a growing profile panel that
- * captures facts as the user drops them, plus a timelapse ticker showing
- * the profile compounding over 30 days.
+ * 0:28 – 0:38 · Phone on the left (natural conversation), Mac window on
+ * the right (the profile dashboard building up in real time). A cursor
+ * occasionally highlights what's arriving on the Mac side. Day counter
+ * jumps Day 1 → Day 7 → Day 30.
  */
 export const LoopInAction: React.FC = () => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  const layoutReveal = interpolate(frame, [0, 20], [0, 1], {
-    extrapolateRight: "clamp"
-  });
+  const layoutReveal = spring({ frame, fps, config: SPRING_SOFT });
+  const opacity = interpolate(layoutReveal, [0, 1], [0, 1]);
+  const translateY = interpolate(layoutReveal, [0, 1], [40, 0]);
 
   const captionReveal = interpolate(frame, [90, 108], [0, 1], {
     extrapolateLeft: "clamp",
@@ -34,174 +39,208 @@ export const LoopInAction: React.FC = () => {
   return (
     <AbsoluteFill
       style={{
-        padding: "72px 100px",
+        opacity: opacity * exit,
+        transform: `translateY(${translateY}px)`,
+        padding: "70px 80px",
         display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         gap: 48,
-        opacity: layoutReveal * exit
+        perspective: "2200px"
       }}
     >
-      {/* CHAT column */}
-      <div
-        style={{
-          flex: "0 0 640px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 0
-        }}
-      >
-        <div style={{ marginBottom: 28 }}>
-          <Eyebrow label="Natural conversation" accent={COLORS.accent} />
-        </div>
-
-        <ChatBubble
-          from="user"
-          message="I just started contributing to an observability tool this week."
-          appearAt={12}
-          typeSpeed={1.2}
-        />
-        <ChatBubble
-          from="agent"
-          message="Nice — want to ship it publicly, or keep it internal?"
-          appearAt={68}
-          typeSpeed={1.2}
-        />
-        <ChatBubble
-          from="user"
-          message="Public. I think the CLI I'm writing solves a real problem."
-          appearAt={130}
-          typeSpeed={1.2}
-        />
-
-        {/* caption below chat */}
-        <div style={{ marginTop: 16, opacity: captionReveal }}>
-          <div
-            style={{
-              fontFamily: FONT.mono,
-              fontSize: 12,
-              color: COLORS.ink3,
-              letterSpacing: "0.18em",
-              textTransform: "uppercase"
-            }}
-          >
-            Captured silently · never leaves the boundary · ready on the next turn
+      {/* LEFT — the phone */}
+      <div style={{ transform: "rotateY(6deg)" }}>
+        <PhoneFrame width={420} height={860} accentGlow>
+          <StatusBar accent={COLORS.ink0} />
+          <AppHeader
+            name="PSON Agent"
+            subtitle="Learning · week 1"
+            accent={COLORS.ink0}
+          />
+          <div style={{ padding: "22px 20px", display: "flex", flexDirection: "column" }}>
+            <MessageBubble
+              from="user"
+              message="I just started contributing to an observability tool this week."
+              appearAt={16}
+              typeSpeed={1.2}
+              timestamp="09:41"
+            />
+            <MessageBubble
+              from="agent"
+              message="Nice — want to ship it publicly, or keep it internal?"
+              appearAt={70}
+              typeSpeed={1.2}
+              timestamp="09:41"
+              avatarInitial="P"
+            />
+            <MessageBubble
+              from="user"
+              message="Public. I think the CLI I'm writing actually solves a real problem."
+              appearAt={130}
+              typeSpeed={1.2}
+              timestamp="09:42"
+            />
           </div>
-        </div>
+        </PhoneFrame>
       </div>
 
-      {/* PROFILE compounding column */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          position: "relative"
-        }}
-      >
-        <div style={{ marginBottom: 6 }}>
-          <Eyebrow label="Profile · compounding" accent={COLORS.observed} />
-        </div>
+      {/* RIGHT — the Mac dashboard */}
+      <div style={{ transform: "rotateY(-4deg)", transformStyle: "preserve-3d" }}>
+        <MacWindow width={880} height={620} title="pson · profile dashboard" subtitle="user_4821">
+          <div style={{ padding: "28px 32px", height: "100%", display: "flex", flexDirection: "column", gap: 20 }}>
+            {/* Header row with time + eyebrow */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Eyebrow label="Profile · compounding" accent={COLORS.observed} />
+              <TimeMarker
+                frames={[
+                  { at: 0, label: "DAY 01" },
+                  { at: 150, label: "DAY 07" },
+                  { at: 210, label: "DAY 30" }
+                ]}
+              />
+            </div>
 
-        <div style={{ marginBottom: 10 }}>
-          <TimeMarker
-            frames={[
-              { at: 0, label: "DAY 01" },
-              { at: 150, label: "DAY 07" },
-              { at: 210, label: "DAY 30" }
+            {/* Stats bar */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(4, 1fr)",
+                gap: 10,
+                padding: "12px 14px",
+                background: COLORS.bg0,
+                border: `1px solid ${COLORS.hair}`,
+                borderRadius: 10
+              }}
+            >
+              {[
+                { label: "OBSERVED", value: frame < 150 ? 4 : frame < 210 ? 12 : 28, color: COLORS.observed },
+                { label: "INFERRED", value: frame < 150 ? 0 : frame < 210 ? 5 : 14, color: COLORS.inferred },
+                { label: "SIMULATED", value: frame < 210 ? 0 : 3, color: COLORS.simulated },
+                { label: "REV", value: Math.min(Math.floor(frame / 10) + 1, 31), color: COLORS.accent }
+              ].map((stat) => (
+                <div key={stat.label} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div
+                    style={{
+                      fontFamily: FONT.mono,
+                      fontSize: 9,
+                      color: COLORS.ink3,
+                      letterSpacing: "0.2em"
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: FONT.display,
+                      fontSize: 22,
+                      color: stat.color,
+                      fontWeight: 500,
+                      letterSpacing: "-0.02em"
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Cards grid */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: 12,
+                alignContent: "start",
+                flex: 1
+              }}
+            >
+              <DataCard
+                appearAt={40}
+                label="side_project"
+                value='"observability_tool"'
+                color={COLORS.observed}
+                tag="just captured"
+              />
+              <DataCard
+                appearAt={60}
+                label="public_work_preference"
+                value='"ship_in_public"'
+                color={COLORS.observed}
+                tag="observed"
+              />
+              <DataCard
+                appearAt={156}
+                label="pairing_preference"
+                value='"sharp_peers"'
+                color={COLORS.observed}
+                tag="observed"
+              />
+              <DataCard
+                appearAt={170}
+                label="learning_modality"
+                value='"live_walkthrough"'
+                color={COLORS.observed}
+                tag="observed"
+              />
+              <TraitPill
+                appearAt={184}
+                label="values_technical_leverage"
+                confidence={0.81}
+              />
+              <DataCard
+                appearAt={216}
+                label="dealbreaker"
+                value='"approval_gates"'
+                color={COLORS.observed}
+                tag="observed"
+              />
+              <TraitPill
+                appearAt={232}
+                label="constraint_clarity_heuristic"
+                confidence={0.76}
+              />
+              <TraitPill
+                appearAt={248}
+                label="process_friction_intolerance"
+                confidence={0.69}
+              />
+            </div>
+          </div>
+
+          {/* cursor that demonstrates items being captured */}
+          <CursorArrow
+            path={[
+              { at: 0, x: 740, y: 200 },
+              { at: 40, x: 380, y: 260 },
+              { at: 70, x: 320, y: 300 },
+              { at: 120, x: 600, y: 100 },
+              { at: 170, x: 460, y: 340, click: true },
+              { at: 220, x: 560, y: 380 },
+              { at: 260, x: 680, y: 200 }
             ]}
           />
-        </div>
+        </MacWindow>
+      </div>
 
-        {/* A grid of cards materialising over time */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 12,
-            alignContent: "start"
-          }}
-        >
-          <DataCard
-            appearAt={60}
-            label="side_project"
-            value='"observability_tool"'
-            color={COLORS.observed}
-            tag="just captured"
-          />
-          <DataCard
-            appearAt={80}
-            label="public_work_preference"
-            value='"ship_in_public"'
-            color={COLORS.observed}
-            tag="observed"
-          />
-
-          {/* Day 7 wave */}
-          <DataCard
-            appearAt={156}
-            label="pairing_preference"
-            value='"sharp_peers"'
-            color={COLORS.observed}
-            tag="observed"
-          />
-          <DataCard
-            appearAt={170}
-            label="learning_modality"
-            value='"live_walkthrough"'
-            color={COLORS.observed}
-            tag="observed"
-          />
-          <TraitPill
-            appearAt={184}
-            label="values_technical_leverage"
-            confidence={0.81}
-          />
-
-          {/* Day 30 wave */}
-          <DataCard
-            appearAt={216}
-            label="comp_priority"
-            value='"equity_and_learning"'
-            color={COLORS.observed}
-            tag="observed"
-          />
-          <DataCard
-            appearAt={230}
-            label="dealbreaker"
-            value='"approval_gates"'
-            color={COLORS.observed}
-            tag="observed"
-          />
-          <TraitPill
-            appearAt={244}
-            label="constraint_clarity_heuristic"
-            confidence={0.76}
-          />
-          <TraitPill
-            appearAt={258}
-            label="process_friction_intolerance"
-            confidence={0.69}
-          />
-        </div>
-
-        {/* A PROFILE THAT COMPOUNDS closer */}
-        <div
-          style={{
-            marginTop: 20,
-            fontFamily: FONT.display,
-            fontSize: 34,
-            letterSpacing: "-0.015em",
-            color: COLORS.ink1,
-            fontStyle: "italic",
-            fontVariationSettings: "'SOFT' 80",
-            opacity: interpolate(frame, [240, 276], [0, 1], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp"
-            })
-          }}
-        >
-          a profile that <span style={{ color: COLORS.accent }}>compounds</span>
-        </div>
+      {/* Caption below */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 48,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          opacity: captionReveal,
+          fontFamily: FONT.mono,
+          fontSize: 13,
+          color: COLORS.ink3,
+          letterSpacing: "0.22em",
+          textTransform: "uppercase"
+        }}
+      >
+        captured silently · never leaves the boundary · a profile that{" "}
+        <span style={{ color: COLORS.accent }}>compounds</span>
       </div>
     </AbsoluteFill>
   );

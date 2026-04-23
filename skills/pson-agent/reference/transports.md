@@ -92,15 +92,16 @@ pson mcp-stdio --store .pson5-store
 
 Uses `Content-Length`-framed JSON-RPC on stdin/stdout. Same four methods as HTTP MCP. Typically invoked by a local agent framework (Claude Desktop, LM Studio, etc.) as a subprocess.
 
-Configure it in the framework's MCP server list — the exact config format depends on the framework. A typical entry for Claude Desktop looks like:
+Configure it in the framework's MCP server list — the exact config format depends on the framework. A typical entry for Claude Desktop, using the published CLI (no local clone required), looks like:
 
 ```json
 {
   "mcpServers": {
     "pson5": {
-      "command": "node",
+      "command": "npx",
       "args": [
-        "/absolute/path/to/pson5/apps/cli/dist/apps/cli/src/index.js",
+        "-y",
+        "@pson5/cli",
         "mcp-stdio",
         "--store",
         "/absolute/path/to/.pson5-store"
@@ -109,6 +110,8 @@ Configure it in the framework's MCP server list — the exact config format depe
   }
 }
 ```
+
+If you've installed the CLI globally, replace `"command": "npx"` and the `-y`/`@pson5/cli` args with `"command": "pson"` and drop the first two array entries. If you've cloned the source and prefer to run from `dist/`, point `command` at `node` and give it the absolute path to `apps/cli/dist/apps/cli/src/index.js`.
 
 **Use when:** the agent is running locally on the same machine as PSON5 and you want process-level trust with no network hops.
 

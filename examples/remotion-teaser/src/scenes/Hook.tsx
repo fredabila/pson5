@@ -6,8 +6,9 @@ import { PhosphorDot } from "../components/PhosphorDot";
 /**
  * 0:00 – 0:06 · The hook.
  *
- * A pulsing phosphor dot resolves into a quiet title card. No movement
- * beyond the dot's pulse and the type-in of two lines.
+ * Camera pushes in on a pulsing phosphor dot, which expands into a
+ * constellation of faint rings. Title arrives out of soft blur, subtitle
+ * follows beneath a hairline. Exit fades on the last 20 frames.
  */
 export const Hook: React.FC = () => {
   const frame = useCurrentFrame();
@@ -16,23 +17,29 @@ export const Hook: React.FC = () => {
     extrapolateRight: "clamp"
   });
 
-  const titleReveal = interpolate(frame, [36, 72], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp"
-  });
-  const titleTranslate = interpolate(titleReveal, [0, 1], [18, 0]);
-
-  const subtitleReveal = interpolate(frame, [84, 108], [0, 1], {
+  // subtle camera zoom: starts 1.25x, ends 1.0x
+  const cameraScale = interpolate(frame, [0, 80], [1.25, 1.0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp"
   });
 
-  const hairReveal = interpolate(frame, [78, 108], [0, 320], {
+  const titleReveal = interpolate(frame, [32, 76], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
+  const titleTranslate = interpolate(titleReveal, [0, 1], [20, 0]);
+  const titleBlur = interpolate(titleReveal, [0, 1], [12, 0]);
+
+  const subtitleReveal = interpolate(frame, [90, 114], [0, 1], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp"
   });
 
-  // Fade the whole scene out in the final 20 frames.
+  const hairReveal = interpolate(frame, [82, 114], [0, 360], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
+
   const exit = interpolate(frame, [160, 180], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp"
@@ -45,18 +52,49 @@ export const Hook: React.FC = () => {
         justifyContent: "center",
         flexDirection: "column",
         gap: 44,
-        opacity: exit
+        opacity: exit,
+        transform: `scale(${cameraScale})`
       }}
     >
-      <div style={{ opacity: dotOpacity }}>
-        <PhosphorDot size={16} glow={52} />
+      {/* dot with decorative rings */}
+      <div
+        style={{
+          position: "relative",
+          width: 180,
+          height: 180,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          opacity: dotOpacity
+        }}
+      >
+        {/* concentric rings that pulse outward */}
+        {[0, 1, 2].map((i) => {
+          const cyclePos = ((frame - i * 18) % 90) / 90;
+          const size = interpolate(cyclePos, [0, 1], [20, 160]);
+          const ringOpacity = interpolate(cyclePos, [0, 0.15, 1], [0, 0.4, 0]);
+          return (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                width: size,
+                height: size,
+                borderRadius: "50%",
+                border: `1px solid ${COLORS.accent}`,
+                opacity: ringOpacity
+              }}
+            />
+          );
+        })}
+        <PhosphorDot size={18} glow={58} />
       </div>
 
       <h1
         style={{
           fontFamily: FONT.display,
           fontWeight: 400,
-          fontSize: 104,
+          fontSize: 108,
           letterSpacing: "-0.035em",
           color: COLORS.ink0,
           lineHeight: 1.02,
@@ -65,19 +103,29 @@ export const Hook: React.FC = () => {
           maxWidth: 1200,
           opacity: titleReveal,
           transform: `translateY(${titleTranslate}px)`,
+          filter: `blur(${titleBlur}px)`,
           fontFeatureSettings: "'ss01'"
         }}
       >
-        Your agent <span style={{ fontStyle: "italic", fontVariationSettings: "'SOFT' 100" }}>
+        Your agent{" "}
+        <span
+          style={{
+            fontStyle: "italic",
+            fontVariationSettings: "'SOFT' 100"
+          }}
+        >
           doesn't
-        </span> know you.
+        </span>{" "}
+        know you.
       </h1>
 
       <div
         style={{
           width: hairReveal,
           height: 1,
-          background: COLORS.hair
+          background: COLORS.accent,
+          opacity: 0.55,
+          boxShadow: `0 0 8px ${COLORS.accentGlow}`
         }}
       />
 

@@ -1,146 +1,204 @@
 import React from "react";
-import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
-import { COLORS, FONT } from "../style/tokens";
-import { ChatBubble } from "../components/ChatBubble";
-import { PanelHeader } from "../components/PanelHeader";
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { COLORS, FONT, SPRING_SOFT } from "../style/tokens";
+import { PhoneFrame } from "../components/PhoneFrame";
+import { StatusBar } from "../components/StatusBar";
+import { AppHeader } from "../components/AppHeader";
+import { MessageBubble } from "../components/MessageBubble";
 import { TypingDots } from "../components/TypingDots";
+import { PanelHeader } from "../components/PanelHeader";
 
 /**
- * 0:06 – 0:16 · Split-screen: WITHOUT vs WITH PSON5.
+ * 0:06 – 0:16 · Two iPhones side by side in subtle 3D perspective.
  *
- * Same user question feeds two agents in parallel. The generic one produces
- * a flat list; the PSON-backed one produces a specific, context-aware reply
- * that name-drops real observed facts.
+ * Left phone (tilted to the right) runs a generic assistant app — muted
+ * tones, desaturated colour, no personalization. Right phone (tilted to
+ * the left) runs a PSON-backed agent — phosphor accent, contextual
+ * reply that cites real observed facts.
  */
 export const GenericWound: React.FC = () => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  // headers drop in at the start
-  const headerReveal = interpolate(frame, [0, 18], [0, 1], { extrapolateRight: "clamp" });
-  const headerY = interpolate(headerReveal, [0, 1], [-14, 0]);
+  // Phones rise from below and settle
+  const phoneArrival = spring({ frame, fps, config: SPRING_SOFT });
+  const phoneTranslateY = interpolate(phoneArrival, [0, 1], [80, 0]);
+  const phoneOpacity = interpolate(phoneArrival, [0, 1], [0, 1]);
 
-  // divider draws in
-  const dividerHeight = interpolate(frame, [12, 40], [0, 800], {
-    extrapolateLeft: "clamp",
+  // Headers fade in
+  const headerOpacity = interpolate(frame, [0, 20], [0, 1], {
     extrapolateRight: "clamp"
   });
 
-  // typing dots show frames 50-76 on both sides
-  const typingVisible = frame >= 50 && frame < 76;
+  // Typing indicator window
+  const typingVisible = frame >= 44 && frame < 72;
 
-  // scene-wide exit fade
+  // Scene exit
   const exit = interpolate(frame, [280, 300], [1, 0], {
     extrapolateLeft: "clamp",
     extrapolateRight: "clamp"
   });
 
+  // Camera zoom-out on right phone at end (nudging into ThreeLayers transition)
+  const zoomBoost = interpolate(frame, [260, 300], [1, 1.12], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp"
+  });
+
   return (
-    <AbsoluteFill style={{ opacity: exit, padding: "72px 80px", display: "flex" }}>
-      {/* LEFT panel */}
+    <AbsoluteFill style={{ opacity: exit }}>
+      {/* Column headers above the phones */}
       <div
         style={{
-          flex: 1,
-          paddingRight: 48,
+          position: "absolute",
+          top: 80,
+          left: 0,
+          right: 0,
           display: "flex",
-          flexDirection: "column",
-          gap: 28,
-          opacity: headerReveal,
-          transform: `translateY(${headerY}px)`,
-          filter: frame > 120 ? "saturate(0.55) brightness(0.92)" : "none",
-          transition: "filter 400ms"
+          justifyContent: "center",
+          gap: 580,
+          opacity: headerOpacity
         }}
       >
         <PanelHeader label="Without PSON5" accent={COLORS.ink2} />
+        <PanelHeader label="With PSON5" accent={COLORS.accent} />
+      </div>
 
-        <ChatBubble
-          from="user"
-          message="Help me think about my next job move."
-          appearAt={28}
-          typeSpeed={1.3}
-        />
+      {/* Two phones in 3D perspective */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 80,
+          perspective: "2000px",
+          transformStyle: "preserve-3d",
+          paddingTop: 30
+        }}
+      >
+        {/* LEFT phone */}
+        <div
+          style={{
+            opacity: phoneOpacity,
+            transform: `translateY(${phoneTranslateY}px)`,
+            filter: frame > 100 ? "saturate(0.55)" : "none",
+            transition: "filter 400ms"
+          }}
+        >
+          <PhoneFrame width={440} height={900} tilt={5}>
+            <StatusBar accent={COLORS.ink1} />
+            <AppHeader
+              name="AI Assistant"
+              subtitle="Standard"
+              accent={COLORS.ink1}
+              avatarColors={[COLORS.ink2, COLORS.ink3]}
+            />
+            <div style={{ padding: "28px 22px", display: "flex", flexDirection: "column" }}>
+              <MessageBubble
+                from="user"
+                message="Help me think about my next job move."
+                appearAt={22}
+                typeSpeed={1.2}
+                tone="muted"
+                timestamp="09:41"
+              />
 
-        {typingVisible && (
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <TypingDots />
-          </div>
-        )}
+              {typingVisible && (
+                <div style={{ paddingLeft: 46, marginBottom: 14 }}>
+                  <TypingDots color={COLORS.ink3} />
+                </div>
+              )}
 
-        {frame >= 76 && (
-          <ChatBubble
-            from="agent"
-            message={`Here are some common steps for a job search:
+              {frame >= 72 && (
+                <MessageBubble
+                  from="agent"
+                  message={`Here are some common steps for a job search:
 1. Update your resume
 2. Network on LinkedIn
 3. Practice common interview questions
 4. Tailor applications to each role`}
-            appearAt={76}
-            typeSpeed={1.3}
-            meta="0ms of context"
-            tone="muted"
-          />
-        )}
-      </div>
+                  appearAt={72}
+                  typeSpeed={1.25}
+                  tone="muted"
+                  meta="0 ms of context"
+                  timestamp="09:41"
+                  avatarColors={[COLORS.ink2, COLORS.ink3]}
+                  avatarInitial="A"
+                />
+              )}
+            </div>
+          </PhoneFrame>
+        </div>
 
-      {/* DIVIDER */}
-      <div
-        style={{
-          width: 1,
-          height: dividerHeight,
-          background: COLORS.hair,
-          alignSelf: "center",
-          position: "relative"
-        }}
-      >
+        {/* RIGHT phone */}
         <div
           style={{
-            position: "absolute",
-            left: -1,
-            top: 0,
-            width: 3,
-            height: 120,
-            background: COLORS.accent,
-            opacity: 0.6,
-            filter: "blur(8px)"
+            opacity: phoneOpacity,
+            transform: `translateY(${phoneTranslateY}px) scale(${zoomBoost})`
           }}
-        />
+        >
+          <PhoneFrame width={440} height={900} tilt={-5} accentGlow>
+            <StatusBar accent={COLORS.ink0} />
+            <AppHeader
+              name="PSON Agent"
+              subtitle="Active · reading your profile"
+              accent={COLORS.ink0}
+              avatarColors={[COLORS.accent, COLORS.accentDim]}
+            />
+            <div style={{ padding: "28px 22px", display: "flex", flexDirection: "column" }}>
+              <MessageBubble
+                from="user"
+                message="Help me think about my next job move."
+                appearAt={22}
+                typeSpeed={1.2}
+                timestamp="09:41"
+              />
+
+              {typingVisible && (
+                <div style={{ paddingLeft: 46, marginBottom: 14 }}>
+                  <TypingDots color={COLORS.accent} />
+                </div>
+              )}
+
+              {frame >= 72 && (
+                <MessageBubble
+                  from="agent"
+                  message={`Given you turned down two FAANG offers in the last 18 months and just hit 1.2k stars on your OS project, I don't think another platform role would land well. Founding engineer at a Series A is where your pattern actually points.`}
+                  appearAt={72}
+                  typeSpeed={0.95}
+                  meta="42 observed · 9 inferred"
+                  timestamp="09:41"
+                  avatarInitial="P"
+                />
+              )}
+            </div>
+          </PhoneFrame>
+        </div>
       </div>
 
-      {/* RIGHT panel */}
+      {/* Bottom caption */}
       <div
         style={{
-          flex: 1,
-          paddingLeft: 48,
-          display: "flex",
-          flexDirection: "column",
-          gap: 28,
-          opacity: headerReveal,
-          transform: `translateY(${headerY}px)`
+          position: "absolute",
+          bottom: 48,
+          left: 0,
+          right: 0,
+          textAlign: "center",
+          opacity: interpolate(frame, [160, 200], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp"
+          }),
+          fontFamily: FONT.display,
+          fontSize: 34,
+          fontStyle: "italic",
+          fontVariationSettings: "'SOFT' 100",
+          color: COLORS.ink1,
+          letterSpacing: "-0.015em"
         }}
       >
-        <PanelHeader label="With PSON5" accent={COLORS.accent} />
-
-        <ChatBubble
-          from="user"
-          message="Help me think about my next job move."
-          appearAt={28}
-          typeSpeed={1.3}
-        />
-
-        {typingVisible && (
-          <div style={{ display: "flex", justifyContent: "flex-start" }}>
-            <TypingDots color={COLORS.accent} />
-          </div>
-        )}
-
-        {frame >= 76 && (
-          <ChatBubble
-            from="agent"
-            message={`Given you turned down two FAANG offers in the last 18 months and just hit 1.2k stars on your OS project, I don't think another platform role would land well. Founding engineer at a Series A is where your pattern actually points.`}
-            appearAt={76}
-            typeSpeed={1.05}
-            meta="42 observed · 9 inferred"
-          />
-        )}
+        same question · <span style={{ color: COLORS.accent }}>very different</span> answer
       </div>
     </AbsoluteFill>
   );

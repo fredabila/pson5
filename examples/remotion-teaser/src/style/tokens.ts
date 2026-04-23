@@ -47,7 +47,7 @@ export const VIDEO = {
   width: 1920,
   height: 1080,
   fps: 30,
-  durationInFrames: 1800
+  durationInFrames: 2220
 } as const;
 
 /** Scene offsets in frames. Edit this table to retime the whole piece. */
@@ -55,10 +55,12 @@ export const SCENE = {
   hook: { from: 0, duration: 180 }, // 0:00 – 0:06
   genericWound: { from: 180, duration: 300 }, // 0:06 – 0:16
   threeLayers: { from: 480, duration: 360 }, // 0:16 – 0:28
-  loopInAction: { from: 840, duration: 300 }, // 0:28 – 0:38
-  decision: { from: 1140, duration: 300 }, // 0:38 – 0:48
-  tagline: { from: 1440, duration: 180 }, // 0:48 – 0:54
-  outro: { from: 1620, duration: 180 } // 0:54 – 1:00
+  graph: { from: 840, duration: 210 }, // 0:28 – 0:35 (new)
+  loopInAction: { from: 1050, duration: 300 }, // 0:35 – 0:45
+  decision: { from: 1350, duration: 300 }, // 0:45 – 0:55
+  benchmarks: { from: 1650, duration: 210 }, // 0:55 – 1:02 (new)
+  tagline: { from: 1860, duration: 180 }, // 1:02 – 1:08
+  outro: { from: 2040, duration: 180 } // 1:08 – 1:14
 } as const;
 
 /** Reusable spring config for "arrival" animations. */

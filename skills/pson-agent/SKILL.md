@@ -123,7 +123,7 @@ Treat `user_id` as your application's stable identity key. Treat `profile_id` as
 
 ## Setup
 
-If you've just been given this skill and PSON5 isn't installed yet, follow **[setup.md](setup.md)**. It takes you from `git clone` to a running demo in about 10 minutes and covers: install, provider keys, running the zero-registry demo, optional Neo4j.
+If you've just been given this skill and PSON5 isn't installed yet, follow **[setup.md](setup.md)**. It takes you from `npx @pson5/cli` (no clone, no build) to a running profile in about 5 minutes and covers: install, provider keys, the interactive console, the MCP server, and optional Neo4j.
 
 ## Reference (skill-local)
 

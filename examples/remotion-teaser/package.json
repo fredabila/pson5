@@ -6,9 +6,15 @@
   "type": "module",
   "scripts": {
     "preview": "remotion preview src/index.ts",
-    "studio": "remotion studio src/index.ts",
-    "render": "remotion render src/index.ts Teaser out/pson5-teaser.mp4 --concurrency=2",
-    "render-hq": "remotion render src/index.ts Teaser out/pson5-teaser.mp4 --concurrency=4 --crf=16 --codec=h264 --pixel-format=yuv420p"
+    "studio": "npm run build:assets && remotion studio src/index.ts",
+    "render": "npm run build:assets && remotion render src/index.ts Teaser out/pson5-teaser.mp4 --concurrency=2",
+    "render-hq": "npm run build:assets && remotion render src/index.ts Teaser out/pson5-teaser.mp4 --concurrency=4 --crf=16 --codec=h264 --pixel-format=yuv420p",
+    "build:assets": "npm run build:music && npm run build:vo && npm run bench",
+    "build:music": "node scripts/generate-music-lyria.mjs",
+    "build:vo": "node scripts/generate-tts-google.mjs",
+    "build:sfx": "node scripts/generate-audio.mjs",
+    "build:audio": "npm run build:music && npm run build:vo",
+    "bench": "node scripts/benchmark.mjs"
   },
   "dependencies": {
     "@remotion/cli": "^4.0.400",

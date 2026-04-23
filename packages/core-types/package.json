@@ -1,6 +1,6 @@
 {
   "name": "@pson5/core-types",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core TypeScript types and shared contracts for the PSON5 personalization standard.",
   "license": "MIT",
   "repository": {
