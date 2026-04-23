@@ -2,6 +2,7 @@ import type {
   AgentContextCategory,
   AgentContextEntry,
   AgentContextOptions,
+  AgentContextRedactionNote,
   InferredTraitRecord,
   ProfileStoreOptions,
   PsonAgentContext,
@@ -69,7 +70,11 @@ function relevanceFor(key: string, intent: string, taskContext?: Record<string, 
   return clamp(relevance);
 }
 
-function getObservedFacts(profile: PsonProfile, domains?: string[]): AgentContextEntry[] {
+function getObservedFacts(
+  profile: PsonProfile,
+  domains: string[] | undefined,
+  notes: AgentContextRedactionNote[]
+): AgentContextEntry[] {
   const activeDomains = domains && domains.length > 0 ? new Set(domains) : null;
   const restricted = new Set(profile.privacy.restricted_fields);
   const entries: AgentContextEntry[] = [];
@@ -86,7 +91,15 @@ function getObservedFacts(profile: PsonProfile, domains?: string[]): AgentContex
     }
 
     for (const [key, factValue] of Object.entries(facts)) {
-      if (restricted.has(`layers.observed.${domain}.facts.${key}`)) {
+      const path = `layers.observed.${domain}.facts.${key}`;
+      if (restricted.has(path)) {
+        const metadata = getEntryMetadata(key);
+        notes.push({
+          path,
+          reason: "restricted_field",
+          category: metadata.category,
+          detail: "Field is listed in profile.privacy.restricted_fields."
+        });
         continue;
       }
 
@@ -107,8 +120,13 @@ function getObservedFacts(profile: PsonProfile, domains?: string[]): AgentContex
   return entries;
 }
 
-function getInferredTraits(profile: PsonProfile, domains?: string[]): AgentContextEntry[] {
+function getInferredTraits(
+  profile: PsonProfile,
+  domains: string[] | undefined,
+  notes: AgentContextRedactionNote[]
+): AgentContextEntry[] {
   const activeDomains = domains && domains.length > 0 ? new Set(domains) : null;
+  const restricted = new Set(profile.privacy.restricted_fields);
   const inferred = asRecord(profile.layers.inferred) ?? {};
   const entries: AgentContextEntry[] = [];
 
@@ -128,6 +146,18 @@ function getInferredTraits(profile: PsonProfile, domains?: string[]): AgentConte
     }
 
     for (const trait of traits as InferredTraitRecord[]) {
+      const path = `layers.inferred.${domain}.traits.${trait.key}`;
+      if (restricted.has(path) || restricted.has(`layers.inferred.${domain}`)) {
+        const metadata = getEntryMetadata(trait.key);
+        notes.push({
+          path,
+          reason: "restricted_field",
+          category: metadata.category,
+          detail: "Inferred trait is covered by profile.privacy.restricted_fields."
+        });
+        continue;
+      }
+
       const metadata = getEntryMetadata(trait.key);
       entries.push({
         key: trait.key,
@@ -198,24 +228,41 @@ function dedupeEntries(entries: AgentContextEntry[]): AgentContextEntry[] {
   return [...map.values()];
 }
 
-function scoreEntries(entries: AgentContextEntry[], options: AgentContextOptions): AgentContextEntry[] {
+function scoreEntries(
+  entries: AgentContextEntry[],
+  options: AgentContextOptions,
+  notes: AgentContextRedactionNote[]
+): AgentContextEntry[] {
   const minConfidence = options.min_confidence ?? 0.6;
 
-  return entries
-    .map((entry) => ({
-      ...entry,
-      relevance: relevanceFor(entry.key, options.intent, options.task_context)
-    }))
-    .filter((entry) => entry.confidence >= minConfidence)
-    .sort((left, right) => {
-      if (right.relevance !== left.relevance) {
-        return right.relevance - left.relevance;
-      }
-      if (right.confidence !== left.confidence) {
-        return right.confidence - left.confidence;
-      }
-      return left.source === "observed" ? -1 : 1;
-    });
+  const scored = entries.map((entry) => ({
+    ...entry,
+    relevance: relevanceFor(entry.key, options.intent, options.task_context)
+  }));
+
+  const kept: AgentContextEntry[] = [];
+  for (const entry of scored) {
+    if (entry.confidence < minConfidence) {
+      notes.push({
+        path: `${entry.source}.${entry.domain}.${entry.key}`,
+        reason: "low_confidence",
+        category: entry.category,
+        detail: `Confidence ${entry.confidence.toFixed(2)} is below min_confidence ${minConfidence.toFixed(2)}.`
+      });
+      continue;
+    }
+    kept.push(entry);
+  }
+
+  return kept.sort((left, right) => {
+    if (right.relevance !== left.relevance) {
+      return right.relevance - left.relevance;
+    }
+    if (right.confidence !== left.confidence) {
+      return right.confidence - left.confidence;
+    }
+    return left.source === "observed" ? -1 : 1;
+  });
 }
 
 function groupEntries(entries: AgentContextEntry[], maxItems: number): PsonAgentContext["personal_data"] {
@@ -251,16 +298,60 @@ function getAllowedFieldPrefixes(profile: PsonProfile): string[] {
   return candidates.filter((field) => !blocked.has(field));
 }
 
+function emptyPersonalData(): PsonAgentContext["personal_data"] {
+  return {
+    preferences: [],
+    communication_style: [],
+    behavioral_patterns: [],
+    learning_profile: [],
+    current_state: [],
+    predictions: []
+  };
+}
+
 export function buildAgentContext(profile: PsonProfile, options: AgentContextOptions): PsonAgentContext {
   const maxItems = options.max_items ?? 6;
-  const observedEntries = getObservedFacts(profile, options.domains);
-  const inferredEntries = getInferredTraits(profile, options.domains);
+  const redactionNotes: AgentContextRedactionNote[] = [];
+  const baseConstraints = {
+    restricted_fields: [...profile.privacy.restricted_fields],
+    local_only: profile.privacy.local_only,
+    allowed_for_agent: getAllowedFieldPrefixes(profile)
+  };
+  const baseReasoningPolicy = {
+    treat_as_fact: ["personal_data.preferences", "personal_data.communication_style"],
+    treat_as_inference: ["personal_data.behavioral_patterns", "personal_data.learning_profile", "personal_data.current_state"],
+    treat_as_prediction: ["personal_data.predictions"]
+  };
+
+  if (!profile.consent.granted) {
+    return {
+      profile_id: profile.profile_id,
+      pson_version: profile.pson_version,
+      context_version: "1.0",
+      intent: options.intent,
+      generated_at: new Date().toISOString(),
+      personal_data: emptyPersonalData(),
+      constraints: baseConstraints,
+      reasoning_policy: baseReasoningPolicy,
+      redaction_notes: [
+        {
+          path: "consent",
+          reason: "consent_not_granted",
+          detail: "profile.consent.granted is false; agent context is withheld."
+        }
+      ]
+    };
+  }
+
+  const observedEntries = getObservedFacts(profile, options.domains, redactionNotes);
+  const inferredEntries = getInferredTraits(profile, options.domains, redactionNotes);
   const stateEntries = getStateEntries(profile);
   const predictionEntries = options.include_predictions ? getPredictionEntries(profile) : [];
 
   const scored = scoreEntries(
     dedupeEntries([...observedEntries, ...inferredEntries, ...stateEntries, ...predictionEntries]),
-    options
+    options,
+    redactionNotes
   );
 
   return {
@@ -270,16 +361,9 @@ export function buildAgentContext(profile: PsonProfile, options: AgentContextOpt
     intent: options.intent,
     generated_at: new Date().toISOString(),
     personal_data: groupEntries(scored, maxItems),
-    constraints: {
-      restricted_fields: [...profile.privacy.restricted_fields],
-      local_only: profile.privacy.local_only,
-      allowed_for_agent: getAllowedFieldPrefixes(profile)
-    },
-    reasoning_policy: {
-      treat_as_fact: ["personal_data.preferences", "personal_data.communication_style"],
-      treat_as_inference: ["personal_data.behavioral_patterns", "personal_data.learning_profile", "personal_data.current_state"],
-      treat_as_prediction: ["personal_data.predictions"]
-    }
+    constraints: baseConstraints,
+    reasoning_policy: baseReasoningPolicy,
+    redaction_notes: redactionNotes
   };
 }
 

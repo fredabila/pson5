@@ -426,6 +426,19 @@ export interface AgentReasoningPolicy {
   treat_as_prediction: string[];
 }
 
+export type AgentContextRedactionReason =
+  | "restricted_field"
+  | "low_confidence"
+  | "consent_not_granted"
+  | "local_only";
+
+export interface AgentContextRedactionNote {
+  path: string;
+  reason: AgentContextRedactionReason;
+  category?: AgentContextCategory;
+  detail?: string;
+}
+
 export interface AgentContextOptions {
   intent: string;
   domains?: string[];
@@ -451,6 +464,7 @@ export interface PsonAgentContext {
   };
   constraints: AgentContextConstraints;
   reasoning_policy: AgentReasoningPolicy;
+  redaction_notes?: AgentContextRedactionNote[];
 }
 
 export interface ValidationIssue {
