@@ -1,0 +1,118 @@
+[
+  {
+    "id": "tech-employment",
+    "version": "1.0.0",
+    "description": "Domain for tech-employment personalization: experience, stack preferences, company fit, compensation priorities, and work arrangement.",
+    "questions": [
+      {
+        "id": "tech_years_experience",
+        "domain": "tech-employment",
+        "prompt": "How many years have you been building software seriously?",
+        "type": "single_choice",
+        "depth": "light",
+        "sensitivity": "low",
+        "information_targets": ["years_experience"],
+        "follow_up_rules": [],
+        "choices": [
+          { "value": "0_1", "label": "0 to 1 year" },
+          { "value": "2_3", "label": "2 to 3 years" },
+          { "value": "4_6", "label": "4 to 6 years" },
+          { "value": "7_plus", "label": "7 or more years" }
+        ]
+      },
+      {
+        "id": "tech_primary_focus",
+        "domain": "tech-employment",
+        "prompt": "Where do you spend most of your engineering time?",
+        "type": "single_choice",
+        "depth": "light",
+        "sensitivity": "low",
+        "information_targets": ["primary_focus"],
+        "follow_up_rules": [],
+        "choices": [
+          { "value": "frontend", "label": "Frontend / UI" },
+          { "value": "backend", "label": "Backend / APIs" },
+          { "value": "systems", "label": "Systems / Infra" },
+          { "value": "ml", "label": "ML / applied research" },
+          { "value": "devops", "label": "DevOps / platform" },
+          { "value": "fullstack", "label": "Full-stack" }
+        ]
+      },
+      {
+        "id": "tech_favorite_language",
+        "domain": "tech-employment",
+        "prompt": "Which language do you reach for first when the problem is genuinely hard?",
+        "type": "single_choice",
+        "depth": "standard",
+        "sensitivity": "low",
+        "information_targets": ["favorite_language"],
+        "follow_up_rules": [],
+        "choices": [
+          { "value": "rust", "label": "Rust" },
+          { "value": "go", "label": "Go" },
+          { "value": "python", "label": "Python" },
+          { "value": "typescript", "label": "TypeScript" },
+          { "value": "c_cpp", "label": "C / C++" },
+          { "value": "other", "label": "Something else" }
+        ]
+      },
+      {
+        "id": "tech_company_stage",
+        "domain": "tech-employment",
+        "prompt": "What company stage fits you best right now?",
+        "type": "single_choice",
+        "depth": "standard",
+        "sensitivity": "low",
+        "information_targets": ["company_stage"],
+        "follow_up_rules": [],
+        "choices": [
+          { "value": "early_stage", "label": "Early-stage startup (seed / series A)" },
+          { "value": "scaleup", "label": "Scaleup" },
+          { "value": "enterprise", "label": "Enterprise / BigCo" },
+          { "value": "indie", "label": "Indie / solo / consulting" }
+        ]
+      },
+      {
+        "id": "tech_comp_priority",
+        "domain": "tech-employment",
+        "prompt": "When weighing an offer, what dominates the decision?",
+        "type": "single_choice",
+        "depth": "standard",
+        "sensitivity": "low",
+        "information_targets": ["comp_priority"],
+        "follow_up_rules": [],
+        "choices": [
+          { "value": "base", "label": "Base salary" },
+          { "value": "equity", "label": "Equity / upside" },
+          { "value": "remote", "label": "Remote flexibility" },
+          { "value": "learning", "label": "Learning / mission / team" }
+        ]
+      },
+      {
+        "id": "tech_work_arrangement",
+        "domain": "tech-employment",
+        "prompt": "What work arrangement do you want?",
+        "type": "single_choice",
+        "depth": "light",
+        "sensitivity": "low",
+        "information_targets": ["work_arrangement"],
+        "follow_up_rules": [],
+        "choices": [
+          { "value": "remote", "label": "Full-remote" },
+          { "value": "hybrid", "label": "Hybrid" },
+          { "value": "onsite", "label": "On-site" }
+        ]
+      },
+      {
+        "id": "tech_growth_signals",
+        "domain": "tech-employment",
+        "prompt": "In your own words: what signals to you that a role will help you grow?",
+        "type": "free_text",
+        "depth": "deep",
+        "sensitivity": "standard",
+        "information_targets": ["growth_signals"],
+        "follow_up_rules": []
+      }
+    ]
+  }
+]

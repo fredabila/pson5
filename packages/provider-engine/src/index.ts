@@ -705,9 +705,11 @@ const anthropicAdapter: ProviderAdapter = {
     const baseUrl = args.config.base_url ?? DEFAULT_ANTHROPIC_BASE_URL;
     const endpoint = `${baseUrl}/messages`;
     const schemaSnippet = JSON.stringify(args.format.schema);
+    // 4000 tokens headroom: modeling + simulation schemas occasionally exceed
+    // the older 1200-token cap and return truncated JSON that can't be parsed.
     const requestBody = JSON.stringify({
       model: args.config.model ?? DEFAULT_ANTHROPIC_MODEL,
-      max_tokens: 1200,
+      max_tokens: 4000,
       messages: [
         {
           role: "user",
