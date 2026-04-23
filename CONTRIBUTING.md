@@ -14,8 +14,8 @@ Changes should preserve that platform direction rather than solving only one loc
 
 ## Before You Start
 
-1. Read [README.md](/C:/Users/user/pson5/README.md).
-2. Read the relevant docs under [docs/](/C:/Users/user/pson5/docs).
+1. Read [README.md](README.md).
+2. Read the relevant docs under [docs/](docs/).
 3. Run:
 
 ```powershell

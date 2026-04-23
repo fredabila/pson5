@@ -31,4 +31,4 @@ Project maintainers may remove comments, reject contributions, or suspend partic
 
 ## Reporting
 
-Report issues privately through the security/support channels in [SECURITY.md](/C:/Users/user/pson5/SECURITY.md) and [SUPPORT.md](/C:/Users/user/pson5/SUPPORT.md).
+Report issues privately through the security/support channels in [SECURITY.md](SECURITY.md) and [SUPPORT.md](SUPPORT.md).

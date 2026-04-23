@@ -228,7 +228,7 @@ Numbers come from `scripts/benchmark.mjs` — merge 5000 trait candidates, simul
 
 **0:57 – 0:59** Mono caption below:
 
-> OPEN STANDARD · MIT · github.com/pson5/pson5
+> OPEN STANDARD · MIT · github.com/fredabila/pson5
 
 **0:59 – 1:00** Fade to black.
 

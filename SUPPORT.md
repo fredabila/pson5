@@ -2,9 +2,9 @@
 
 ## Where To Start
 
-- Usage and integration questions: read [README.md](/C:/Users/user/pson5/README.md) and [docs/](/C:/Users/user/pson5/docs)
-- Bug reports: open a GitHub issue
-- Security issues: follow [SECURITY.md](/C:/Users/user/pson5/SECURITY.md)
+- Usage and integration questions: read [README.md](README.md) and [docs/](docs/)
+- Bug reports: open an issue at [github.com/fredabila/pson5/issues](https://github.com/fredabila/pson5/issues)
+- Security issues: follow [SECURITY.md](SECURITY.md)
 
 ## Good Support Requests
 

@@ -7,7 +7,7 @@
 <p align="center">
   <a href="https://github.com/fredabila/pson5/actions"><img alt="build" src="https://img.shields.io/badge/ci-passing-b6ff5c?style=flat-square&labelColor=0e0f12" /></a>
   <a href="https://github.com/fredabila/pson5/blob/main/LICENSE"><img alt="license" src="https://img.shields.io/badge/license-MIT-f5f4ef?style=flat-square&labelColor=0e0f12" /></a>
-  <a href="https://github.com/fredabila/pson5/blob/main/CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.1.0-b6ff5c?style=flat-square&labelColor=0e0f12" /></a>
+  <a href="https://github.com/fredabila/pson5/blob/main/CHANGELOG.md"><img alt="version" src="https://img.shields.io/badge/version-0.2.0-b6ff5c?style=flat-square&labelColor=0e0f12" /></a>
   <img alt="node" src="https://img.shields.io/badge/node-20%2B-f5f4ef?style=flat-square&labelColor=0e0f12" />
   <img alt="typescript" src="https://img.shields.io/badge/typescript-strict-8ec7ff?style=flat-square&labelColor=0e0f12" />
   <img alt="providers" src="https://img.shields.io/badge/providers-openai%20%C2%B7%20anthropic%20%C2%B7%20openai--compatible-b6ff5c?style=flat-square&labelColor=0e0f12" />
@@ -329,12 +329,14 @@ node examples/claude-driven-persona/run.mjs
 # output/graph.cypher — paste into Neo4j Browser
 ```
 
-### Open the dashboard
+### Open the landing page
 
 ```bash
 npm run dev:api                          # :3015
-npm run dev --workspace @pson5/web       # :4173 → /access → /console
+npm run dev --workspace @pson5/web       # :4173 — dark-editorial landing
 ```
+
+For the interactive operational UI, use the terminal: `pson console` (Ink/React TUI) or `npx @pson5/cli console` if you haven't installed globally.
 
 ## Neo4j
 
@@ -397,5 +399,5 @@ Issues, discussions, PRs all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) and
 ---
 
 <p align="center">
-  <sub>PSON<span style="font-style:italic">5</span> · v0.1.0 · the hard rule is always <em>observed ≠ inferred ≠ simulated</em></sub>
+  <sub>PSON<span style="font-style:italic">5</span> · v0.2.0 · the hard rule is always <em>observed ≠ inferred ≠ simulated</em></sub>
 </p>
