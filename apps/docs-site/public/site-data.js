@@ -70,6 +70,34 @@ export const site = {
       title: "Getting Started",
       pages: [
         {
+          slug: "getting-started/quickstart",
+          title: "Quickstart",
+          summary: "Get a real PSON5 profile running end-to-end in five minutes.",
+          content: `
+            <div class="callout">
+              Three paths — local SDK, HTTP API, or CLI. Pick whichever matches your runtime.
+              PSON5 works fully without a model; every engine has a rule-based fallback.
+            </div>
+            <h2 id="4-line">The 4-line starter</h2>
+            <pre><code>import { PsonClient } from "@pson5/sdk";
+
+const pson = new PsonClient();
+const profile = await pson.createAndSaveProfile({ user_id: "user_123" });
+console.log(profile.profile_id, profile.metadata.revision); // pson_... 1</code></pre>
+            <h2 id="provider">Add a provider (optional)</h2>
+            <pre><code># Claude
+export PSON_AI_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=sk-ant-...
+export PSON_AI_MODEL=claude-haiku-4-5-20251001
+
+# Any OpenAI-compatible endpoint (Ollama / vLLM / Groq / …)
+export PSON_AI_PROVIDER=openai-compatible
+export PSON_AI_BASE_URL=http://localhost:11434/v1
+export PSON_AI_MODEL=llama3.1</code></pre>
+            ${githubLink("usage/quickstart.md")}
+          `
+        },
+        {
           slug: "getting-started/install",
           title: "Install",
           summary: "Workspace install, development commands, and what to run first.",
@@ -392,6 +420,46 @@ pson agent-context &lt;profile_id&gt; --intent "study plan" --json</code></pre>
               <li>"Required AI consent scopes are missing."</li>
             </ul>
             ${githubLink("usage/privacy.md")}
+          `
+        },
+        {
+          slug: "engines/provider-adapters",
+          title: "Provider adapters",
+          summary: "Plug any model into PSON5 via one interface. OpenAI / Anthropic / OpenAI-compatible built in.",
+          content: `
+            <h2 id="built-in">Built-in adapters</h2>
+            <ul>
+              <li><code>openai</code> — OpenAI responses API with JSON-schema structured outputs.</li>
+              <li><code>anthropic</code> — Anthropic messages API with schema embedded in the prompt.</li>
+              <li><code>openai-compatible</code> — any <code>/chat/completions</code> endpoint (Ollama, vLLM, LiteLLM, OpenRouter, Groq, Together, Fireworks, Azure OpenAI, …) via <code>base_url</code>.</li>
+            </ul>
+            <h2 id="register">Register your own</h2>
+            <pre><code>import { registerProviderAdapter } from "@pson5/provider-engine";
+
+registerProviderAdapter({
+  name: "my-provider",
+  default_base_url: "https://api.my-provider.com/v1",
+  default_model: "my-model-v1",
+  async callJson({ config, format, instructions, payload, signal }) {
+    const response = await fetch(\`\${config.base_url}/generate\`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: \`Bearer \${config.api_key}\` },
+      body: JSON.stringify({ model: config.model, prompt: instructions, payload }),
+      signal
+    });
+    const bodyText = await response.text();
+    return {
+      parsed: JSON.parse(bodyText),
+      endpoint: response.url,
+      attempt: { response, body_text: bodyText, attempts: 1, final_status_code: response.status, final_error: null, duration_ms: 0 }
+    };
+  }
+});</code></pre>
+            <h2 id="select">Select it</h2>
+            <pre><code>export PSON_AI_PROVIDER=my-provider
+export PSON_AI_API_KEY=...
+export PSON_AI_MODEL=my-model-v1</code></pre>
+            ${githubLink("usage/provider-adapters.md")}
           `
         },
         {
