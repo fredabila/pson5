@@ -3,67 +3,101 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PSON5 Dashboard</title>
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#09090b" />
+    <title>PSON5 — Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..600,0..100&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="/landing.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="dashboard-shell">
-      <header class="dashboard-topbar">
-        <div class="topbar-copy">
-          <p class="eyebrow">PSON5 Dashboard</p>
-          <h1>Operate the personalization stack from one coherent workspace.</h1>
-          <p class="lede">
-            Create profiles, inspect observed and inferred layers, run adaptive learning, simulate behavior, check
-            provider policy, and export safely.
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell nav">
+        <a class="wordmark" href="/">
+          <span class="wordmark__dot" aria-hidden="true"></span>
+          <span>PSON<span class="italic-mark">5</span></span>
+          <span class="wordmark__suffix">console</span>
+        </a>
+        <nav class="nav-links" aria-label="Primary">
+          <a href="/">Landing</a>
+          <a href="/access">Access</a>
+          <a class="nav-cta" href="https://github.com/fredabila/pson5" target="_blank" rel="noopener">
+            <span>GitHub</span>
+            <svg class="nav-cta__arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+              <path d="M3 9L9 3m0 0H4m5 0v5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="shell dashboard">
+      <!-- ======================== HEADER ======================== -->
+      <header class="dashboard__intro">
+        <div>
+          <span class="eyebrow eyebrow--accent">PSON5 · Dashboard</span>
+          <h1 class="dashboard__title">
+            Operate the personalization stack from one <em class="italic-mark">coherent</em> workspace.
+          </h1>
+          <p class="dashboard__lede">
+            Create profiles, run adaptive learning, inspect the observed / inferred / simulated
+            layers, check provider policy, sync the knowledge graph, and export safely — all on
+            the same engine the SDK, API, CLI, and MCP transports sit on.
           </p>
-        </div>
-        <div class="topbar-actions">
-          <a href="/" class="ghost-link">Landing</a>
-          <a href="/access" class="ghost-link">Access Gate</a>
         </div>
       </header>
 
-      <div class="status-strip">
+      <!-- ======================== STATUS STRIP ======================== -->
+      <section class="status-strip" aria-label="Current session context">
         <article class="status-tile">
-          <span>API</span>
-          <strong id="current-api">/api</strong>
+          <span>API target</span>
+          <strong id="current-api" class="mono">/api</strong>
         </article>
         <article class="status-tile">
           <span>Profile</span>
-          <strong id="current-profile">None loaded</strong>
+          <strong id="current-profile" class="mono">None loaded</strong>
         </article>
         <article class="status-tile">
           <span>Session</span>
-          <strong id="current-session">No session</strong>
+          <strong id="current-session" class="mono">No session</strong>
         </article>
         <article class="status-tile">
           <span>Provider</span>
-          <strong id="provider-brief">Unknown</strong>
+          <strong id="provider-brief" class="mono">Unknown</strong>
         </article>
-      </div>
+      </section>
 
-      <main class="dashboard-grid">
-        <aside class="command-rail">
+      <!-- ======================== MAIN GRID ======================== -->
+      <div class="dashboard-grid">
+        <!-- ===== COMMAND RAIL ===== -->
+        <aside class="command-rail" aria-label="Commands">
           <section class="panel">
-            <div class="panel-head">
+            <header class="panel__head">
               <h2>Workspace</h2>
-              <span class="tag">Connection</span>
-            </div>
+              <span class="panel__tag">Connection</span>
+            </header>
             <div class="stack">
               <label class="field">
                 <span>API base</span>
-                <input id="api-origin" type="text" />
+                <input id="api-origin" type="text" placeholder="/api" />
               </label>
-              <button id="save-config" type="button">Apply API Target</button>
-              <p id="config-status" class="caption">Loading config...</p>
+              <button id="save-config" type="button" class="btn btn--primary btn--block">Apply API target</button>
+              <p id="config-status" class="caption mono">Loading config…</p>
             </div>
           </section>
 
           <section class="panel">
-            <div class="panel-head">
-              <h2>Create or Load</h2>
-              <span class="tag">Profiles</span>
-            </div>
+            <header class="panel__head">
+              <h2>Create or load</h2>
+              <span class="panel__tag">Profiles</span>
+            </header>
             <form id="init-form" class="stack">
               <label class="field">
                 <span>User ID</span>
@@ -81,25 +115,26 @@
                   <option value="deep">deep</option>
                 </select>
               </label>
-              <button type="submit">Create Profile</button>
+              <button type="submit" class="btn btn--primary btn--block">Create profile</button>
             </form>
-            <form id="load-form" class="stack separated">
+
+            <form id="load-form" class="stack stack--divided">
               <label class="field">
                 <span>Profile ID</span>
-                <input id="profile-id" type="text" placeholder="pson_..." required />
+                <input id="profile-id" type="text" placeholder="pson_…" required />
               </label>
               <div class="button-row">
-                <button type="submit" class="secondary">Load</button>
-                <button type="button" id="refresh-profile" class="ghost">Refresh</button>
+                <button type="submit" class="btn btn--ghost btn--block">Load</button>
+                <button type="button" id="refresh-profile" class="btn btn--ghost btn--block">Refresh</button>
               </div>
             </form>
           </section>
 
           <section class="panel">
-            <div class="panel-head">
-              <h2>Adaptive Learning</h2>
-              <span class="tag">Acquire</span>
-            </div>
+            <header class="panel__head">
+              <h2>Adaptive learning</h2>
+              <span class="panel__tag">Acquire</span>
+            </header>
             <form id="question-form" class="stack">
               <label class="field">
                 <span>Question domains</span>
@@ -114,35 +149,36 @@
                   <option value="deep">deep</option>
                 </select>
               </label>
-              <button type="submit">Fetch Next Question</button>
+              <button type="submit" class="btn btn--primary btn--block">Fetch next question</button>
             </form>
-            <form id="answer-form" class="stack separated">
+
+            <form id="answer-form" class="stack stack--divided">
               <label class="field">
                 <span>Question ID</span>
                 <input id="answer-question-id" type="text" required />
               </label>
               <label class="field">
                 <span>Natural-language answer</span>
-                <textarea id="answer-value" rows="4" placeholder="Answer naturally. PSON will normalize where possible." required></textarea>
+                <textarea id="answer-value" rows="4" placeholder="Answer naturally. PSON5 normalizes where possible." required></textarea>
               </label>
-              <button type="submit" class="secondary">Submit Answer</button>
+              <button type="submit" class="btn btn--ghost btn--block">Submit answer</button>
             </form>
           </section>
 
           <section class="panel">
-            <div class="panel-head">
+            <header class="panel__head">
               <h2>Simulation</h2>
-              <span class="tag">Predict</span>
-            </div>
+              <span class="panel__tag">Predict</span>
+            </header>
             <form id="simulate-form" class="stack">
               <label class="field">
                 <span>Task</span>
                 <input id="simulate-task" type="text" value="study for exam" />
               </label>
-              <div class="split">
+              <div class="field-row">
                 <label class="field">
                   <span>Deadline days</span>
-                  <input id="simulate-deadline" type="number" value="2" />
+                  <input id="simulate-deadline" type="number" value="2" min="0" />
                 </label>
                 <label class="field">
                   <span>Difficulty</span>
@@ -157,49 +193,52 @@
                 <span>Domains</span>
                 <input id="simulate-domains" type="text" placeholder="core,education" />
               </label>
-              <button type="submit">Run Simulation</button>
+              <button type="submit" class="btn btn--primary btn--block">Run simulation</button>
             </form>
           </section>
         </aside>
 
+        <!-- ===== MAIN STAGE ===== -->
         <section class="main-stage">
-          <section class="hero-panel">
-            <div>
-              <p class="eyebrow">Profile Snapshot</p>
-              <h2 id="hero-headline">Load a profile to activate the dashboard.</h2>
-              <p id="hero-subcopy" class="hero-subcopy">
-                The dashboard will surface acquisition signals, provider policy, simulation output, and profile layers.
+          <!-- Profile snapshot -->
+          <section class="panel hero-panel" aria-label="Profile snapshot">
+            <header class="hero-panel__head">
+              <span class="eyebrow">Profile snapshot</span>
+              <h2 id="hero-headline" class="hero-panel__title">Load a profile to activate the dashboard.</h2>
+              <p id="hero-subcopy" class="hero-panel__lede">
+                The dashboard will surface acquisition signals, provider policy, simulation output, and the three profile layers.
               </p>
-            </div>
-            <div id="summary-cards" class="summary-grid"></div>
+            </header>
+            <div id="summary-cards" class="summary-grid" role="list"></div>
           </section>
 
-          <section class="insight-grid">
+          <!-- 2x2 insight grid -->
+          <div class="insight-grid">
             <section class="panel">
-              <div class="panel-head">
-                <h2>Current Question</h2>
-                <span class="tag">Adaptive</span>
-              </div>
+              <header class="panel__head">
+                <h2>Current question</h2>
+                <span class="panel__tag panel__tag--observed">Adaptive</span>
+              </header>
               <div id="question-brief" class="brief-card empty">No question fetched yet.</div>
               <pre id="question-output" class="console empty">The raw question payload will appear here.</pre>
             </section>
 
             <section class="panel">
-              <div class="panel-head">
-                <h2>Session Intelligence</h2>
-                <span class="tag">Signals</span>
-              </div>
+              <header class="panel__head">
+                <h2>Session intelligence</h2>
+                <span class="panel__tag panel__tag--inferred">Signals</span>
+              </header>
               <div id="session-intelligence" class="signal-stack empty">
                 Fetch a question to inspect fatigue, confidence gaps, contradictions, and stop logic.
               </div>
             </section>
 
             <section class="panel">
-              <div class="panel-head">
-                <h2>Provider Control</h2>
-                <span class="tag">Policy</span>
-              </div>
-              <div class="stack tight">
+              <header class="panel__head">
+                <h2>Provider control</h2>
+                <span class="panel__tag">Policy</span>
+              </header>
+              <div class="stack stack--tight">
                 <div class="mini-grid">
                   <article class="metric-card">
                     <span class="metric-label">Configured provider</span>
@@ -211,103 +250,123 @@
                   </article>
                 </div>
                 <div class="button-row">
-                  <button id="refresh-provider" type="button" class="ghost">Refresh Provider</button>
-                  <button id="check-provider-policy" type="button" class="secondary">Check Simulation Policy</button>
+                  <button id="refresh-provider" type="button" class="btn btn--ghost btn--block">Refresh</button>
+                  <button id="check-provider-policy" type="button" class="btn btn--ghost btn--block">Check policy</button>
                 </div>
                 <pre id="provider-output" class="console empty">Provider status has not been loaded yet.</pre>
               </div>
             </section>
 
             <section class="panel">
-              <div class="panel-head">
+              <header class="panel__head">
                 <h2>Export</h2>
-                <span class="tag">Share</span>
-              </div>
-              <div class="stack tight">
+                <span class="panel__tag">Share</span>
+              </header>
+              <div class="stack stack--tight">
                 <div class="button-row">
-                  <button id="export-safe" type="button">Export Safe</button>
-                  <button id="export-full" type="button" class="secondary">Export Full</button>
+                  <button id="export-safe" type="button" class="btn btn--ghost btn--block">Export safe</button>
+                  <button id="export-full" type="button" class="btn btn--primary btn--block">Export full</button>
                 </div>
                 <pre id="export-output" class="console empty">Run an export to inspect the serialized profile.</pre>
               </div>
             </section>
-          </section>
+          </div>
 
+          <!-- Simulation result -->
           <section class="panel simulation-panel">
-            <div class="panel-head">
-              <h2>Simulation Result</h2>
-              <span class="tag">Reasoning</span>
-            </div>
+            <header class="panel__head">
+              <h2>Simulation result</h2>
+              <span class="panel__tag panel__tag--simulated">Reasoning</span>
+            </header>
             <div id="simulation-brief" class="simulation-shell empty">
               Run a simulation to inspect prediction, provider mode, confidence, reasoning, and alternatives.
             </div>
             <pre id="simulation-output" class="console empty">Raw simulation payload appears here after execution.</pre>
           </section>
 
+          <!-- Agent context -->
           <section class="panel">
-            <div class="panel-head">
-              <h2>Agent Context</h2>
-              <span class="tag">Projection</span>
-            </div>
+            <header class="panel__head">
+              <h2>Agent context</h2>
+              <span class="panel__tag panel__tag--accent">Projection</span>
+            </header>
             <form id="agent-form" class="inline-form">
               <label class="field">
                 <span>Intent</span>
                 <input id="agent-intent" type="text" value="general_assistance" />
               </label>
-              <button id="build-agent-context" type="submit">Build Agent Context</button>
+              <button id="build-agent-context" type="submit" class="btn btn--primary">Build agent context</button>
             </form>
             <pre id="agent-output" class="console empty">Build the standardized agent-facing projection for the current profile.</pre>
           </section>
 
+          <!-- Operational views -->
           <section class="panel">
-            <div class="panel-head">
-              <h2>Operational Views</h2>
-              <span class="tag">Inspect</span>
-            </div>
-            <div class="tab-row">
-              <button class="tab active" data-target="observed-pane" type="button">Observed</button>
-              <button class="tab" data-target="inferred-pane" type="button">Inferred</button>
-              <button class="tab" data-target="state-pane" type="button">State</button>
-              <button class="tab" data-target="privacy-pane" type="button">Privacy</button>
-              <button class="tab" data-target="graph-pane" type="button">Graph</button>
-              <button class="tab" data-target="explain-pane" type="button">Explain</button>
+            <header class="panel__head">
+              <h2>Operational views</h2>
+              <span class="panel__tag">Inspect</span>
+            </header>
+            <div class="tab-row" role="tablist" aria-label="Operational views">
+              <button class="tab active" data-target="observed-pane" type="button" role="tab" aria-selected="true">
+                <span class="tab__dot tab__dot--observed" aria-hidden="true"></span>
+                Observed
+              </button>
+              <button class="tab" data-target="inferred-pane" type="button" role="tab" aria-selected="false">
+                <span class="tab__dot tab__dot--inferred" aria-hidden="true"></span>
+                Inferred
+              </button>
+              <button class="tab" data-target="state-pane" type="button" role="tab" aria-selected="false">
+                State
+              </button>
+              <button class="tab" data-target="privacy-pane" type="button" role="tab" aria-selected="false">
+                Privacy
+              </button>
+              <button class="tab" data-target="graph-pane" type="button" role="tab" aria-selected="false">
+                Graph
+              </button>
+              <button class="tab" data-target="explain-pane" type="button" role="tab" aria-selected="false">
+                <span class="tab__dot tab__dot--simulated" aria-hidden="true"></span>
+                Explain
+              </button>
             </div>
 
-            <div class="pane active" id="observed-pane">
+            <div class="pane active" id="observed-pane" role="tabpanel">
               <pre id="observed-output" class="console empty">Load a profile to inspect observed data.</pre>
             </div>
-
-            <div class="pane" id="inferred-pane">
+            <div class="pane" id="inferred-pane" role="tabpanel">
               <pre id="inferred-output" class="console empty">Load a profile to inspect inferred traits, heuristics, and provider insight.</pre>
             </div>
-
-            <div class="pane" id="state-pane">
+            <div class="pane" id="state-pane" role="tabpanel">
               <pre id="state-output" class="console empty">Load a profile to inspect active states and transitions.</pre>
             </div>
-
-            <div class="pane" id="privacy-pane">
+            <div class="pane" id="privacy-pane" role="tabpanel">
               <pre id="privacy-output" class="console empty">Load a profile to inspect consent, privacy, and provider policy.</pre>
             </div>
-
-            <div class="pane" id="graph-pane">
+            <div class="pane" id="graph-pane" role="tabpanel">
               <div id="graph-overview" class="graph-shell empty">Load a profile to inspect graph structure.</div>
               <div id="graph-map" class="graph-map empty">Load a profile to render the graph map.</div>
             </div>
-
-            <div class="pane" id="explain-pane">
+            <div class="pane" id="explain-pane" role="tabpanel">
               <form id="explain-form" class="inline-form">
                 <label class="field">
                   <span>Prediction</span>
                   <input id="prediction-id" type="text" placeholder="delayed_start" />
                 </label>
-                <button type="submit">Explain Structural Support</button>
+                <button type="submit" class="btn btn--primary">Explain structural support</button>
               </form>
               <pre id="explain-output" class="console empty">Request explanation support for a prediction.</pre>
             </div>
           </section>
         </section>
-      </main>
-    </div>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-bottom">
+        <span>PSON5 · v0.1.0 · dashboard</span>
+        <span class="mono">Internal tooling surface. Handle profile data deliberately.</span>
+      </div>
+    </footer>
 
     <script type="module" src="/app.js"></script>
   </body>
