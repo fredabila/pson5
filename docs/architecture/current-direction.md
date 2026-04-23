@@ -10,27 +10,36 @@ The codebase currently implements:
 
 - `.pson` schema validation
 - profile persistence
-- acquisition flows
+- acquisition flows with fatigue, contradiction flags, and confidence-gap
+  tracking in the learning session
 - rules-based modeling
 - rules-based simulation
 - OpenAI- and Anthropic-backed provider augmentation for modeling and simulation
-- derived state model
+- derived state model with time-based confidence decay and trigger evaluation
+  against observed facts
 - generated in-profile knowledge graph
+- Neo4j knowledge-graph sync (env/file config, status, Cypher-backed merge of
+  profile / user / nodes / edges)
+- agent tool contract layer: `@pson5/sdk` definitions plus `/v1/pson/tools/*`
+  and `/v1/mcp` on the API and `pson mcp-stdio` on the CLI
+- API auth stack with role + scope enforcement, tenant binding, subject-user
+  binding, per-route request IDs, and profile redaction for non-privileged
+  callers on read endpoints
+- agent context projection with explicit redaction notes and consent gating
 - SDK
 - API
-- CLI
+- CLI (Ink/React interactive console, legacy readline kept as `console-legacy`)
 - web console
 
 ## What The Project Is Not Yet
 
 The codebase does not yet implement:
 
-- Claude integration
-- Neo4j integration
 - vector retrieval
-- production auth
-- production privacy enforcement depth
-- distributed persistence
+- rate limiting
+- distributed persistence beyond the file-backed and Postgres scaffolds
+- deeper policy modeling across tenants and domains
+- key rotation and trust-provider workflows for production identity
 
 ## Correct Direction
 
@@ -58,6 +67,9 @@ Current state:
 
 - OpenAI and Anthropic are now wired
 - Anthropic is not yet live-tested here without a real Anthropic key
+- Claude agents can integrate via the PSON agent skill
+  (`skills/pson-agent/SKILL.md`), the SDK tool executor, `/v1/mcp`, or the
+  local `pson mcp-stdio` transport
 
 Recommended role:
 
@@ -68,13 +80,19 @@ Recommended role:
 
 ## Guidance On Neo4j
 
-Neo4j should become an external persistence and traversal backend for the knowledge graph, but only after the current graph contracts are stable.
+Neo4j is now available as an external persistence backend. The knowledge graph
+is still the source of truth inside `.pson`, and Neo4j is synced from it:
 
-That means:
+- `@pson5/neo4j-store` exposes `saveNeo4jConfig`, `getNeo4jStatus`, and
+  `syncKnowledgeGraphToNeo4j`
+- the SDK wires `PsonClient.syncProfileGraph(profileId)`
+- the API exposes `/v1/pson/neo4j/status` and `/v1/pson/neo4j/sync`
+- the CLI adds `pson neo4j-status`, `pson neo4j-set`, `pson neo4j-wizard`,
+  `pson neo4j-clear`, and `pson neo4j-sync`
 
-- keep graph node and edge shapes stable first
-- add a graph repository layer second
-- make Neo4j one backend implementation, not the entire graph API
+Next steps: treat Neo4j as one backend implementation alongside the in-profile
+graph, not the entire graph API, and keep graph node and edge shapes stable so
+repository alternatives stay pluggable.
 
 ## Production Readiness Assessment
 

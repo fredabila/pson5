@@ -54,20 +54,43 @@ Implementation:
     treat_as_inference: string[];
     treat_as_prediction: string[];
   };
+  redaction_notes?: Array<{
+    path: string;
+    reason: "restricted_field" | "low_confidence" | "consent_not_granted" | "local_only";
+    category?: AgentContextCategory;
+    detail?: string;
+  }>;
 }
 ```
+
+## Redaction Notes
+
+When a field is filtered out, the context surfaces why instead of dropping the
+entry silently. Agents can branch on the reason:
+
+- `restricted_field` — the field or its domain path appears in
+  `profile.privacy.restricted_fields`
+- `low_confidence` — the entry scored below the caller's `min_confidence`
+- `consent_not_granted` — `profile.consent.granted` is false; `personal_data`
+  is empty and the whole context is withheld
+
+If no redactions apply, `redaction_notes` is `[]`.
 
 ## Selection Rules
 
 The current implementation:
 
-1. starts from observed facts and inferred traits
-2. ignores raw answer records
-3. removes restricted observed facts
-4. removes low-confidence entries below `min_confidence`
-5. deduplicates overlapping items by key and prefers observed facts
-6. ranks remaining entries by intent relevance and confidence
-7. groups the result into agent-facing categories
+1. checks `profile.consent.granted` first; when false, returns an empty
+   `personal_data` payload with a `consent_not_granted` redaction note
+2. starts from observed facts and inferred traits
+3. ignores raw answer records
+4. removes restricted observed facts and inferred traits, recording a
+   `restricted_field` note for each filtered path
+5. removes low-confidence entries below `min_confidence`, recording a
+   `low_confidence` note for each one
+6. deduplicates overlapping items by key and prefers observed facts
+7. ranks remaining entries by intent relevance and confidence
+8. groups the result into agent-facing categories
 
 ## Relevance Model
 
