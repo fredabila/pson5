@@ -1,4 +1,5 @@
 import type { AgentContextOptions, InitProfileInput, LearnRequest, ProfileStoreOptions } from "@pson5/core-types";
+import type { ObserveFactInput } from "@pson5/serialization-engine";
 import type { SimulationRequest } from "@pson5/simulation-engine";
 import type { PsonClient } from "./index.js";
 
@@ -8,6 +9,7 @@ export type PsonAgentToolName =
   | "pson_get_agent_context"
   | "pson_get_next_questions"
   | "pson_learn"
+  | "pson_observe_fact"
   | "pson_simulate"
   | "pson_get_provider_policy";
 
@@ -127,6 +129,47 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
           next_question_limit: { type: "number" }
         },
         ["profile_id", "answers"]
+      )
+    },
+    {
+      type: "function",
+      name: "pson_observe_fact",
+      description:
+        "Record a free-form observed fact the user volunteered in open conversation — use this when the user states something about themselves that does NOT correspond to any registered question from pson_get_next_questions. Unlike pson_learn, this does not require a registry question id. Still writes only to the observed layer; never use this to record the model's own inferences.",
+      input_schema: objectSchema(
+        {
+          profile_id: { type: "string" },
+          domain: {
+            type: "string",
+            description:
+              "Domain slug the fact belongs to. Use 'core' for general identity/lifestyle facts, 'personal' for relationships or location, or a descriptive custom slug for niche topics."
+          },
+          key: {
+            type: "string",
+            description:
+              "Short snake_case slug naming the fact, e.g. 'preferred_name', 'current_city', 'pet_species'."
+          },
+          value: {
+            anyOf: [
+              { type: "string" },
+              { type: "number" },
+              { type: "boolean" },
+              { type: "array", items: { type: "string" } },
+              { type: "null" }
+            ],
+            description: "The fact itself. Keep the value close to how the user stated it."
+          },
+          note: {
+            type: "string",
+            description: "Optional rationale — why this was worth saving, or how you derived it."
+          },
+          confidence: {
+            type: "number",
+            description:
+              "0 to 1. Omit (defaults to 1.0) when the user stated the fact directly; lower when you're paraphrasing or extracting from context."
+          }
+        },
+        ["profile_id", "domain", "key", "value"]
       )
     },
     {
@@ -263,6 +306,31 @@ export function createPsonAgentToolExecutor(
           };
 
           return client.learn(input, storeOptions);
+        }
+
+        case "pson_observe_fact": {
+          if (typeof args.profile_id !== "string") {
+            throw new Error("pson_observe_fact requires profile_id.");
+          }
+          if (typeof args.domain !== "string" || args.domain.trim().length === 0) {
+            throw new Error("pson_observe_fact requires a non-empty domain.");
+          }
+          if (typeof args.key !== "string" || args.key.trim().length === 0) {
+            throw new Error("pson_observe_fact requires a non-empty key.");
+          }
+
+          const value = args.value as ObserveFactInput["value"];
+
+          const input: ObserveFactInput = {
+            profile_id: args.profile_id,
+            domain: args.domain,
+            key: args.key,
+            value,
+            note: typeof args.note === "string" ? args.note : undefined,
+            confidence: typeof args.confidence === "number" ? args.confidence : undefined
+          };
+
+          return client.observeFact(input, storeOptions);
         }
 
         case "pson_simulate": {

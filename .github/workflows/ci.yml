@@ -50,3 +50,6 @@ jobs:
 
       - name: CLI JSON output integration test
         run: npm run test:cli-json
+
+      - name: observeFact integration test
+        run: npm run test:observe-fact

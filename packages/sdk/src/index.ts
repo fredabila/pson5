@@ -45,7 +45,9 @@ import {
   initProfile,
   loadProfile,
   loadProfileByUserId,
-  validateProfile
+  observeFact,
+  validateProfile,
+  type ObserveFactInput
 } from "@pson5/serialization-engine";
 import { simulateStoredProfile, type SimulationRequest, type SimulationResponse } from "@pson5/simulation-engine";
 import { getActiveStateSnapshot } from "@pson5/state-engine";
@@ -106,6 +108,17 @@ export class PsonClient {
 
   public async learn(input: LearnRequest, options?: ProfileStoreOptions): Promise<LearnResult> {
     return submitLearningAnswers(input, options);
+  }
+
+  /**
+   * Record a free-form observed fact the user volunteered — for when the
+   * structured question flow via `learn()` is too rigid. Writes directly
+   * to `layers.observed[domain]` with `observation_type: "agent_observation"`
+   * provenance; the three-layer invariant still holds (never writes to
+   * inferred or simulated).
+   */
+  public async observeFact(input: ObserveFactInput, options?: ProfileStoreOptions): Promise<PsonProfile> {
+    return observeFact(input, options);
   }
 
   public async simulate(request: SimulationRequest, options?: ProfileStoreOptions): Promise<SimulationResponse> {
@@ -244,3 +257,7 @@ export type {
   PsonAgentToolExecutor,
   PsonAgentToolName
 } from "./agent-tools.js";
+
+// Re-export the observeFact input shape so callers don't need to import
+// from @pson5/serialization-engine directly.
+export type { ObserveFactInput } from "@pson5/serialization-engine";

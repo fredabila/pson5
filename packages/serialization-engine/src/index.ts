@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type {
+  AgentObservationRecord,
   ExportProfileOptions,
   ImportProfileOptions,
   InitProfileInput,
@@ -727,4 +728,125 @@ export async function importProfileDocument(
   }
 
   return saveProfile(profile, options);
+}
+
+// ─── observeFact ────────────────────────────────────────────────────────
+//
+// Append a free-form observed fact to the profile WITHOUT going through
+// the structured question flow. This is the right primitive when an
+// agent captures something the user volunteered in open conversation.
+//
+// The three-layer invariant still holds:
+//   • writes go to `layers.observed[domain]` and only there
+//   • carries `observation_type: "agent_observation"` + `source_question_id: null`
+//     so downstream code can distinguish question-driven answers from
+//     agent observations.
+//   • every entry has a confidence score (defaults to 1.0 when the user
+//     stated the fact directly).
+
+export interface ObserveFactInput {
+  profile_id: string;
+  /** Domain slug the fact belongs to ("core", "personal", "custom:<name>" …). */
+  domain: string;
+  /** Short fact slug — e.g. "preferred_name", "current_city", "pet_species". */
+  key: string;
+  /** The fact itself. */
+  value: string | number | boolean | string[] | null;
+  /** Optional rationale — how the agent derived or confirmed this. */
+  note?: string;
+  /** 0-1. Defaults to 1.0 when omitted (user stated it directly). */
+  confidence?: number;
+}
+
+function sanitizeFactKey(key: string): string {
+  const trimmed = key.trim();
+  if (!trimmed) {
+    throw new ProfileStoreError("validation_error", "observeFact requires a non-empty key.");
+  }
+  // Keep it friendly: lower-case snake_case, no odd characters. Agents
+  // passing `Preferred Name` get a consistent `preferred_name`.
+  return trimmed
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function asObservedDomainObject(current: unknown): Record<string, unknown> {
+  return typeof current === "object" && current !== null && !Array.isArray(current)
+    ? (current as Record<string, unknown>)
+    : {};
+}
+
+function asNestedRecord(current: unknown): Record<string, unknown> {
+  return typeof current === "object" && current !== null && !Array.isArray(current)
+    ? (current as Record<string, unknown>)
+    : {};
+}
+
+export async function observeFact(
+  input: ObserveFactInput,
+  options?: ProfileStoreOptions
+): Promise<PsonProfile> {
+  if (!input.profile_id) {
+    throw new ProfileStoreError("validation_error", "observeFact requires profile_id.");
+  }
+  if (!input.domain || typeof input.domain !== "string") {
+    throw new ProfileStoreError("validation_error", "observeFact requires a non-empty domain.");
+  }
+  const normalizedKey = sanitizeFactKey(input.key);
+
+  const confidence =
+    typeof input.confidence === "number" && input.confidence >= 0 && input.confidence <= 1
+      ? input.confidence
+      : 1.0;
+
+  const profile = await loadProfile(input.profile_id, options);
+  const now = new Date();
+  const recordedAt = nowIso(now);
+
+  const record: AgentObservationRecord = {
+    source_id: `observation_${now.getTime()}_${normalizedKey}`,
+    observation_type: "agent_observation",
+    domain: input.domain,
+    key: normalizedKey,
+    value: input.value as AgentObservationRecord["value"],
+    note: input.note && input.note.trim().length > 0 ? input.note.trim() : null,
+    recorded_at: recordedAt,
+    confidence,
+    source_question_id: null
+  };
+
+  const existingDomain = asObservedDomainObject(profile.layers.observed[input.domain]);
+  const existingObservations = asNestedRecord(existingDomain.observations);
+  const existingFacts = asNestedRecord(existingDomain.facts);
+
+  const nextProfile: PsonProfile = {
+    ...profile,
+    layers: {
+      ...profile.layers,
+      observed: {
+        ...profile.layers.observed,
+        [input.domain]: {
+          ...existingDomain,
+          observations: {
+            ...existingObservations,
+            [record.source_id]: record
+          },
+          facts: {
+            ...existingFacts,
+            [normalizedKey]: input.value
+          },
+          last_updated_at: recordedAt
+        }
+      }
+    },
+    metadata: {
+      ...profile.metadata,
+      revision: profile.metadata.revision + 1,
+      source_count: profile.metadata.source_count + 1,
+      updated_at: recordedAt
+    }
+  };
+
+  return saveProfile(nextProfile, options);
 }

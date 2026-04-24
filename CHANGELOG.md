@@ -4,6 +4,13 @@ All notable changes to PSON5 will be documented in this file.
 
 ## Unreleased
 
+### Agent-observation API (new)
+
+- **`observeFact()`** on the `@pson5/sdk` `PsonClient` and as a standalone function in `@pson5/serialization-engine`. Records a free-form observed fact volunteered by the user, without requiring a registered question id. Writes to `layers.observed[domain]` only — the three-layer invariant is preserved; `observation_type: "agent_observation"` + `source_question_id: null` distinguish these from `pson_learn` answers in downstream code.
+- **`pson_observe_fact`** agent tool exposed by `getPsonAgentToolDefinitions()` and executed by `createPsonAgentToolExecutor()`. Takes `{ profile_id, domain, key, value, note?, confidence? }`. Unblocks open-conversation personalization where the agent can't realistically funnel every volunteered fact through a pre-registered question.
+- **New `AgentObservationRecord` type** in `@pson5/core-types`. Lives alongside `ObservedAnswerRecord`; both share the `facts` map within each observed domain, but their provenance buckets are distinct (`observations` vs. `answers`).
+- **Integration test** `tests/integration/observe-fact.mjs` locks the contract: revision + source_count bumping, key sanitization, confidence default, layer-separation enforcement, error paths. Wired into `npm run ci` and the GitHub Actions CI workflow.
+
 ### Security
 
 - **API request-body size cap.** `apps/api` now enforces a configurable body-size limit (default 1 MB, max 50 MB via `PSON_MAX_REQUEST_BYTES`) and returns `413 payload_too_large` with a structured error instead of accumulating unbounded memory. Invalid JSON now returns `400 invalid_json`.

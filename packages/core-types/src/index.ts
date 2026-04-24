@@ -245,6 +245,35 @@ export interface ObservedAnswerRecord {
   parser: string;
 }
 
+/**
+ * An observed fact recorded by an agent OUTSIDE the structured question
+ * flow — typically because the user volunteered the fact spontaneously in
+ * conversation. Lives alongside `ObservedAnswerRecord` in
+ * `layers.observed[domain].observations`, while the flat `facts` map is
+ * shared between both paths.
+ *
+ * Provenance is explicit: `observation_type: "agent_observation"` and
+ * `source_question_id: null` distinguish these from question-driven
+ * answers in downstream code.
+ */
+export interface AgentObservationRecord {
+  source_id: string;
+  observation_type: "agent_observation";
+  domain: string;
+  key: string;
+  value: unknown;
+  /** Optional rationale — why/how the agent inferred this was worth saving. */
+  note?: string | null;
+  recorded_at: string;
+  /**
+   * 0-1 confidence the fact is accurate as stated. Defaults to 1.0 when
+   * the user asserted it directly; use lower values when the agent is
+   * paraphrasing or extracting from context.
+   */
+  confidence: number;
+  source_question_id: null;
+}
+
 export interface InferredTraitRecord {
   key: string;
   value: unknown;
