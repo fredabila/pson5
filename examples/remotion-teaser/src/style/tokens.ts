@@ -16,6 +16,7 @@ export const COLORS = {
   ink1: "#b8b6ae",
   ink2: "#7d7b73",
   ink3: "#52514c",
+  ink4: "#33322e",
 
   // Hairlines
   hairSoft: "rgba(245, 244, 239, 0.06)",
