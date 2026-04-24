@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.pson5-store/
+.env
+.env.local
+*.log
+.cache/
+web/dist/
