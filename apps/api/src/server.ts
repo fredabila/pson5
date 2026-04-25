@@ -1221,6 +1221,42 @@ function withMcpSubjectDefaultRole(caller: CallerContext): CallerContext {
   };
 }
 
+function canDeriveMcpSubjectFromUserIdTool(name: PsonAgentToolName): boolean {
+  return (
+    name === "pson_load_profile_by_user_id" ||
+    name === "pson_create_profile" ||
+    name === "pson_ensure_profile"
+  );
+}
+
+function resolveMcpCallerForTool(
+  caller: CallerContext,
+  subjectUserId: string | null,
+  name: PsonAgentToolName,
+  args: Record<string, unknown>
+): { ok: true; caller: CallerContext } | { ok: false; payload: ReturnType<typeof errorJson> } {
+  const argumentUserId = typeof args.user_id === "string" && args.user_id.trim().length > 0
+    ? args.user_id.trim()
+    : null;
+  const resolvedSubjectUserId = subjectUserId ?? (canDeriveMcpSubjectFromUserIdTool(name) ? argumentUserId : null);
+
+  if (subjectUserId && argumentUserId && subjectUserId !== argumentUserId) {
+    return {
+      ok: false,
+      payload: errorJson(
+        "subject_user_mismatch",
+        `Tool argument user_id does not match the authenticated MCP subject user.`,
+        403
+      )
+    };
+  }
+
+  return {
+    ok: true,
+    caller: withMcpSubjectDefaultRole(withMcpSubjectUser(caller, resolvedSubjectUserId))
+  };
+}
+
 function normalizeMcpToolArguments(
   name: PsonAgentToolName,
   args: Record<string, unknown>,
@@ -1941,25 +1977,6 @@ const server = createServer(async (request, response) => {
           writePayload(response, jsonRpcToolAuthError(id, mcpSubject.payload));
           return;
         }
-        const mcpCaller = withMcpSubjectDefaultRole(withMcpSubjectUser(caller, mcpSubject.subjectUserId));
-
-        // tools/call is the only MCP method that touches user data, so
-        // the subject-user binding is enforced here rather than in the
-        // request-level caller-validation step (which is bypassed for
-        // MCP so OpenAI's discovery probes — initialize, tools/list,
-        // ping, …  — work without a user being in scope yet).
-        if (enforceSubjectUserBinding && !mcpCaller.subjectUserId) {
-          const missingSubjectPayload = errorJson(
-            "subject_user_required",
-            `Missing subject user for tools/call. Provide '${subjectUserHeaderName}', 'openai-user-id', 'openai-subject', or tool-call _meta["${OPENAI_SUBJECT_META_KEY}"].`,
-            400
-          );
-          writePayload(
-            response,
-            jsonRpcToolAuthError(id, missingSubjectPayload)
-          );
-          return;
-        }
 
         const name = params.name;
         const args =
@@ -1970,6 +1987,36 @@ const server = createServer(async (request, response) => {
 
         if (typeof name !== "string" || !validToolNames.has(name as PsonAgentToolName)) {
           writePayload(response, jsonRpcError(id, -32602, "Invalid tool call parameters."));
+          return;
+        }
+
+        const mcpCallerResult = resolveMcpCallerForTool(
+          caller,
+          mcpSubject.subjectUserId,
+          name as PsonAgentToolName,
+          args as Record<string, unknown>
+        );
+        if (!mcpCallerResult.ok) {
+          writePayload(response, jsonRpcToolAuthError(id, mcpCallerResult.payload));
+          return;
+        }
+        const mcpCaller = mcpCallerResult.caller;
+
+        // tools/call is the only MCP method that touches user data, so
+        // the subject-user binding is enforced here rather than in the
+        // request-level caller-validation step (which is bypassed for
+        // MCP so OpenAI's discovery probes — initialize, tools/list,
+        // ping, …  — work without a user being in scope yet).
+        if (enforceSubjectUserBinding && !mcpCaller.subjectUserId) {
+          const missingSubjectPayload = errorJson(
+            "subject_user_required",
+            `Missing subject user for tools/call. Provide '${subjectUserHeaderName}', 'openai-user-id', 'openai-subject', tool-call _meta["${OPENAI_SUBJECT_META_KEY}"], or user_id for subject-bound profile tools.`,
+            400
+          );
+          writePayload(
+            response,
+            jsonRpcToolAuthError(id, missingSubjectPayload)
+          );
           return;
         }
 

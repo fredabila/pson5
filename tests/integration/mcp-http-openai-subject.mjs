@@ -234,6 +234,20 @@ async function main() {
     );
     assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
     assert.equal(ensured.result.structuredContent.user_id, "user_subject_no_auth_role");
+
+    const ensuredFromArgument = await rpcWithoutAuth(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {
+          user_id: "user_argument_subject"
+        }
+      },
+      11
+    );
+    assert.equal(ensuredFromArgument.error, undefined, JSON.stringify(ensuredFromArgument.error));
+    assert.equal(ensuredFromArgument.result.structuredContent.user_id, "user_argument_subject");
   });
 }
 
