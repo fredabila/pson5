@@ -738,25 +738,45 @@ export async function getNextQuestions(
 ): Promise<LearningSessionResult> {
   const profile = await loadProfile(profileId, options);
   const registry = await getQuestionRegistry(options);
-  const session: LearningSessionState =
-    input.session_id !== undefined
-      ? await loadSession(input.session_id, options)
-      : {
-          session_id: createSessionId(),
-          profile_id: profile.profile_id,
-          domains: getEffectiveDomains(profile, input.domains),
-          depth: getEffectiveDepth(profile, input.depth),
-          asked_question_ids: [],
-          answered_question_ids: [],
-          generated_questions: [],
-          contradiction_flags: [],
-          confidence_gaps: [],
-          fatigue_score: 0,
-          stop_reason: null,
-          status: "active",
-          created_at: nowIso(),
-          updated_at: nowIso()
-        };
+
+  // Build a fresh session from defaults. Used as the seed when the
+  // caller didn't pass a session_id, AND as the fallback when a
+  // fabricated session_id is supplied that the store doesn't know
+  // about — agents (notably ChatGPT) sometimes invent placeholder
+  // values like "current_session" instead of omitting the field. Erroring
+  // there breaks the structured-Q&A flow on its very first call; we'd
+  // rather start a new session and let the agent get on with it.
+  const buildFreshSession = (): LearningSessionState => ({
+    session_id: createSessionId(),
+    profile_id: profile.profile_id,
+    domains: getEffectiveDomains(profile, input.domains),
+    depth: getEffectiveDepth(profile, input.depth),
+    asked_question_ids: [],
+    answered_question_ids: [],
+    generated_questions: [],
+    contradiction_flags: [],
+    confidence_gaps: [],
+    fatigue_score: 0,
+    stop_reason: null,
+    status: "active",
+    created_at: nowIso(),
+    updated_at: nowIso()
+  });
+
+  let session: LearningSessionState;
+  if (input.session_id !== undefined) {
+    try {
+      session = await loadSession(input.session_id, options);
+    } catch (error) {
+      if (error instanceof ProfileStoreError && error.storeCode === "profile_not_found") {
+        session = buildFreshSession();
+      } else {
+        throw error;
+      }
+    }
+  } else {
+    session = buildFreshSession();
+  }
 
   const seenQuestionIds = new Set<string>([...session.asked_question_ids, ...session.answered_question_ids]);
   for (const questionId of getObservedAnswerIds(profile)) {

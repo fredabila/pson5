@@ -106,11 +106,15 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
       type: "function",
       name: "pson_get_next_questions",
       description:
-        "Get the next question to ask the user that would most reduce uncertainty in their profile. Use this only when the user has opted into structured profile-building (e.g. 'help me set up my profile' or 'ask me a few questions'). After the user answers, pass their answer to pson_learn with the question_id returned here. Don't call this opportunistically during casual conversation.",
+        "Get the next question to ask the user that would most reduce uncertainty in their profile. Use this only when the user has opted into structured profile-building (e.g. 'help me set up my profile' or 'ask me a few questions'). After the user answers, pass their answer to pson_learn with the question_id returned here. Don't call this opportunistically during casual conversation. IMPORTANT: omit `session_id` on the first call — the server will mint one and return it. Pass that exact returned value back on subsequent calls in the same flow. Never invent a session_id like 'current_session' or 'session_1'; the server doesn't recognise fabricated ids and will reject them.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
-          session_id: { type: "string" },
+          session_id: {
+            type: "string",
+            description:
+              "Optional. Omit on the first call; the server will create a session and return its id. On subsequent calls in the same flow, pass back the exact id returned in the prior response. Do not invent a value."
+          },
           domains: { type: "array", items: { type: "string" } },
           depth: { type: "string", enum: ["light", "standard", "deep"] },
           limit: { type: "number" }
@@ -122,11 +126,15 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
       type: "function",
       name: "pson_learn",
       description:
-        "Record the user's answer to a question that came from pson_get_next_questions. Each answer must reference a question_id from that call. Use this for structured registry answers; for free-form facts the user volunteers in conversation (name, location, preferences), use pson_observe_fact instead.",
+        "Record the user's answer to a question that came from pson_get_next_questions. Each answer must reference a question_id from that call. Use this for structured registry answers; for free-form facts the user volunteers in conversation (name, location, preferences), use pson_observe_fact instead. Pass the exact `session_id` returned by pson_get_next_questions; do not invent one.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
-          session_id: { type: "string" },
+          session_id: {
+            type: "string",
+            description:
+              "The session_id returned by the prior pson_get_next_questions call. Required to bind these answers to the right learning session."
+          },
           domains: { type: "array", items: { type: "string" } },
           depth: { type: "string", enum: ["light", "standard", "deep"] },
           answers: {
