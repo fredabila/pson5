@@ -679,6 +679,620 @@ const result = await executor.execute({
     },
 
     // ======================================================================
+    // IMPLEMENTATION GUIDES
+    // ======================================================================
+    {
+      title: "Implementation Guides",
+      pages: [
+        {
+          slug: "implementation/sdk-full-setup",
+          title: "Full SDK setup",
+          summary: "End-to-end SDK setup for production apps: install, store, profile lifecycle, provider setup, simulation, agent context, and operations.",
+          content: `
+            <div class="callout">
+              Use this page when you are building a real product backend with PSON5. The SDK is the most reliable path when your app owns auth, tenancy, and user identity.
+            </div>
+            <h2 id="install">Install</h2>
+            <pre><code>npm install @pson5/sdk</code></pre>
+            <h2 id="minimal-boot">Minimal boot</h2>
+            <pre><code>import { PsonClient } from "@pson5/sdk";
+
+const pson = new PsonClient();
+
+const profile = await pson.ensureProfile(
+  {
+    user_id: "user_123",
+    tenant_id: "tenant_acme",
+    domains: ["core", "education"],
+    depth: "standard"
+  },
+  { rootDir: ".pson5-store" }
+);
+
+console.log(profile.profile_id);</code></pre>
+            <h2 id="store-options">Store options</h2>
+            <table>
+              <thead><tr><th>Mode</th><th>Use for</th><th>Configuration</th></tr></thead>
+              <tbody>
+                <tr><td>Filesystem</td><td>Local dev, demos, one-node apps</td><td><code>{ rootDir: ".pson5-store" }</code></td></tr>
+                <tr><td>Memory adapter</td><td>Tests and ephemeral sandboxes</td><td><code>{ adapter: createMemoryProfileStoreAdapter() }</code></td></tr>
+                <tr><td>Postgres adapter</td><td>Production multi-node apps</td><td><code>PSON_STORE_BACKEND=postgres</code> on the API or adapter in-process</td></tr>
+                <tr><td>Custom adapter</td><td>DynamoDB, Firestore, proprietary stores</td><td>Implement the profile store adapter contract</td></tr>
+              </tbody>
+            </table>
+            <h2 id="full-lifecycle">Full lifecycle</h2>
+            <pre><code>const store = { rootDir: ".pson5-store" };
+
+const profile = await pson.ensureProfile({
+  user_id: appUser.id,
+  tenant_id: appUser.tenantId,
+  domains: ["core", "education"],
+  depth: "standard"
+}, store);
+
+await pson.observeFact({
+  profile_id: profile.profile_id,
+  domain: "education",
+  key: "prefers_worked_examples",
+  value: true,
+  confidence: 1,
+  note: "User said worked examples help them learn."
+}, store);
+
+const next = await pson.getNextQuestions(profile.profile_id, {
+  domains: ["education"],
+  depth: "standard",
+  limit: 2
+}, store);
+
+const context = await pson.getAgentContext(profile.profile_id, {
+  intent: "Personalize an algebra lesson.",
+  domains: ["education", "core"],
+  include_predictions: true,
+  max_items: 16,
+  min_confidence: 0.35
+}, store);</code></pre>
+            <h2 id="provider">Provider setup</h2>
+            <pre><code>await pson.configureProvider({
+  provider: "openai",
+  api_key: process.env.OPENAI_API_KEY,
+  model: "gpt-4.1-mini",
+  enabled: true,
+  timeout_ms: 20000
+}, store);
+
+const policy = await pson.getProviderPolicy(profile.profile_id, "simulation", store);</code></pre>
+            <h2 id="production-checklist">Production checklist</h2>
+            <ul>
+              <li>Use app-stable user IDs, not names or emails as profile identity.</li>
+              <li>Set <code>tenant_id</code> in multi-tenant products.</li>
+              <li>Use <code>getAgentContext</code> for LLM prompts; do not send raw profiles by default.</li>
+              <li>Use <code>observeFact</code> only for user-stated facts, not model guesses.</li>
+              <li>Check provider policy before simulation/modeling.</li>
+              <li>Use Postgres/custom adapter for multi-node production deployments.</li>
+              <li>Keep audit logs enabled or replace them with equivalent external telemetry.</li>
+            </ul>
+            ${githubLink("usage/sdk-full-setup.md")}
+          `
+        },
+        {
+          slug: "implementation/full-stack-reference",
+          title: "Full-stack reference app",
+          summary: "A concrete backend-owned integration with auth, PSON routes, chat, learning, memory writes, simulation, and production request examples.",
+          content: `
+            <div class="callout">
+              This is the fastest path for a startup building its own app: your backend owns auth and calls PSON5 through the SDK. No guessed user IDs, no MCP identity ambiguity.
+            </div>
+            <h2 id="file-tree">File tree</h2>
+            <pre><code>src/
+  env.ts
+  auth.ts
+  pson.ts
+  llm.ts
+  server.ts
+  routes/
+    chat.ts
+    profile.ts
+    learning.ts
+    simulation.ts</code></pre>
+            <h2 id="pson-client">PSON client module</h2>
+            <pre><code>import { PsonClient } from "@pson5/sdk";
+
+export const pson = new PsonClient();
+export const psonStore = { rootDir: process.env.PSON_STORE_DIR ?? ".pson5-store" };
+
+export async function ensureUserProfile(user) {
+  return pson.ensureProfile({
+    user_id: user.id,
+    tenant_id: user.tenantId,
+    domains: ["core", "education"],
+    depth: "standard"
+  }, psonStore);
+}</code></pre>
+            <h2 id="chat-route">Chat route</h2>
+            <pre><code>export async function chat(req) {
+  const user = await requireUser(req);
+  const { message } = await req.json();
+  const profile = await ensureUserProfile(user);
+
+  const context = await pson.getAgentContext(profile.profile_id, {
+    intent: message,
+    domains: ["core", "education"],
+    include_predictions: true,
+    max_items: 16,
+    min_confidence: 0.35,
+    task_context: { surface: "chat", tenant_id: user.tenantId }
+  }, psonStore);
+
+  const answer = await runLlm({
+    messages: [
+      { role: "system", content: "Use PSON context to personalize. Do not expose raw profile data." },
+      { role: "developer", content: JSON.stringify({ pson_agent_context: context }) },
+      { role: "user", content: message }
+    ]
+  });
+
+  return Response.json({
+    answer: answer.text,
+    profile_id: profile.profile_id,
+    redactions: context.redaction_notes
+  });
+}</code></pre>
+            <h2 id="memory-route">Memory write route</h2>
+            <pre><code>export async function rememberFact(req) {
+  const user = await requireUser(req);
+  const body = await req.json();
+  const profile = await ensureUserProfile(user);
+
+  const updated = await pson.observeFact({
+    profile_id: profile.profile_id,
+    domain: body.domain,
+    key: body.key,
+    value: body.value,
+    confidence: 1,
+    note: body.note
+  }, psonStore);
+
+  return Response.json({
+    profile_id: updated.profile_id,
+    revision: updated.metadata.revision
+  });
+}</code></pre>
+            <h2 id="learning-route">Learning route</h2>
+            <pre><code>export async function nextQuestions(req) {
+  const user = await requireUser(req);
+  const profile = await ensureUserProfile(user);
+
+  return Response.json(await pson.getNextQuestions(profile.profile_id, {
+    domains: ["education"],
+    depth: "standard",
+    limit: 2
+  }, psonStore));
+}</code></pre>
+            <h2 id="simulation-route">Simulation route</h2>
+            <pre><code>export async function simulate(req) {
+  const user = await requireUser(req);
+  const body = await req.json();
+  const profile = await ensureUserProfile(user);
+
+  const policy = await pson.getProviderPolicy(profile.profile_id, "simulation", psonStore);
+  if (!policy.allowed) return Response.json({ allowed: false, policy }, { status: 403 });
+
+  return Response.json(await pson.simulate({
+    profile_id: profile.profile_id,
+    domains: ["education", "core"],
+    context: {
+      scenario: body.scenario,
+      question: body.question,
+      options: body.options ?? []
+    },
+    options: {
+      include_reasoning: true,
+      include_evidence: true,
+      explanation_level: "standard"
+    }
+  }, psonStore));
+}</code></pre>
+            <h2 id="requests">Request examples</h2>
+            <pre><code>curl -X POST http://localhost:3000/chat \\
+  -H "content-type: application/json" \\
+  -H "x-demo-user-id: learner_123" \\
+  -H "x-demo-tenant-id: school_456" \\
+  -d '{"message":"Explain two-step equations"}'</code></pre>
+            <pre><code>curl -X POST http://localhost:3000/profile/facts \\
+  -H "content-type: application/json" \\
+  -H "x-demo-user-id: learner_123" \\
+  -d '{"domain":"education","key":"prefers_visual_examples","value":true}'</code></pre>
+            <h2 id="production-notes">Production notes</h2>
+            <ul>
+              <li>Replace demo headers with your real auth/session provider.</li>
+              <li>Use Postgres/custom adapter for multi-node deployments.</li>
+              <li>Test tenant isolation and subject-user isolation explicitly.</li>
+              <li>Never send raw profiles to the LLM by default.</li>
+              <li>Use provider policy before every simulation/modeling call.</li>
+            </ul>
+            ${githubLink("usage/full-stack-reference-implementation.md")}
+          `
+        },
+        {
+          slug: "implementation/llm-integration",
+          title: "Connect LLMs to PSON5",
+          summary: "How to wire OpenAI-style tools, custom agents, backend-owned chat, and MCP clients to the SDK.",
+          content: `
+            <h2 id="mental-model">Mental model</h2>
+            <p>PSON5 is the personalization substrate. Your LLM runtime calls it to load context, write confirmed memory, ask calibration questions, and simulate likely preferences.</p>
+            <h2 id="loop">Standard LLM loop</h2>
+            <ol>
+              <li>Resolve app user identity.</li>
+              <li>Call <code>pson_ensure_profile</code> or SDK <code>ensureProfile</code>.</li>
+              <li>Call <code>pson_get_agent_context</code> before personalized generation.</li>
+              <li>Send the agent context to the LLM as bounded, labelled personalization context.</li>
+              <li>Write durable user-stated facts through <code>pson_observe_fact</code>.</li>
+              <li>Use <code>pson_simulate</code> only for scenario prediction, after provider policy allows it.</li>
+            </ol>
+            <h2 id="prompt-contract">Prompt contract</h2>
+            <pre><code>You have access to PSON5.
+- Never invent user_id.
+- Use pson_get_agent_context before personalizing.
+- Use pson_observe_fact only for explicit user-stated facts.
+- Use pson_get_next_questions only when setup/calibration is useful.
+- Use pson_get_provider_policy before pson_simulate.
+- Treat simulated results as probabilistic, not fact.</code></pre>
+            <h2 id="tool-adapter">OpenAI-style tool adapter</h2>
+            <pre><code>import {
+  PsonClient,
+  getPsonAgentToolDefinitions,
+  createPsonAgentToolExecutor
+} from "@pson5/sdk";
+
+const pson = new PsonClient();
+const executor = createPsonAgentToolExecutor(pson, { rootDir: ".pson5-store" });
+
+export const tools = getPsonAgentToolDefinitions().map((tool) => ({
+  type: "function",
+  name: tool.name,
+  description: tool.description,
+  parameters: tool.input_schema
+}));
+
+export async function executeTool(name, args) {
+  return executor.execute({ name, arguments: args });
+}</code></pre>
+            <h2 id="backend-owned">Backend-owned chat</h2>
+            <pre><code>app.post("/chat", async (req, res) => {
+  const user = await requireUser(req);
+  const profile = await pson.ensureProfile({
+    user_id: user.id,
+    tenant_id: user.tenantId,
+    domains: ["core"],
+    depth: "light"
+  });
+
+  const context = await pson.getAgentContext(profile.profile_id, {
+    intent: req.body.message,
+    include_predictions: true
+  });
+
+  const answer = await runYourLlm({
+    message: req.body.message,
+    psonContext: context
+  });
+
+  res.json({ answer });
+});</code></pre>
+            <h2 id="mcp">MCP clients</h2>
+            <p>Expose <code>/v1/mcp</code> when the LLM product owns tool execution. The server supports OpenAI subject metadata, explicit user IDs, profile lookup, bearer hash, and MCP session fallback. For true cross-session user identity, prefer OpenAI subject metadata or per-user JWTs.</p>
+            ${githubLink("usage/llm-sdk-integration.md")}
+          `
+        },
+        {
+          slug: "implementation/configuration-reference",
+          title: "Configuration reference",
+          summary: "Every important runtime option for API auth, JWT/JWKS, tenancy, MCP, storage, audit, and AI providers.",
+          content: `
+            <h2 id="api-runtime">API runtime</h2>
+            <table>
+              <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>HOST</code></td><td><code>0.0.0.0</code></td><td>Bind host. Non-loopback without auth is refused unless allowed.</td></tr>
+                <tr><td><code>PORT</code></td><td><code>3000</code></td><td>API port.</td></tr>
+                <tr><td><code>PSON_MAX_REQUEST_BYTES</code></td><td>1 MB</td><td>Request body cap.</td></tr>
+              </tbody>
+            </table>
+            <h2 id="storage">Storage</h2>
+            <table>
+              <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>PSON_STORE_BACKEND</code></td><td><code>file</code></td><td><code>file</code>, <code>memory</code>, or <code>postgres</code>.</td></tr>
+                <tr><td><code>PSON_STORE_DIR</code></td><td><code>.pson5-store</code></td><td>Filesystem store root.</td></tr>
+                <tr><td><code>DATABASE_URL</code></td><td>none</td><td>Postgres connection fallback.</td></tr>
+                <tr><td><code>PSON_PG_CONNECTION_STRING</code></td><td>none</td><td>Postgres connection string.</td></tr>
+                <tr><td><code>PSON_PG_SCHEMA</code></td><td><code>public</code></td><td>Postgres schema.</td></tr>
+                <tr><td><code>PSON_PG_APPLY_SCHEMA</code></td><td><code>false</code></td><td>Apply schema SQL on startup.</td></tr>
+              </tbody>
+            </table>
+            <h2 id="auth">Auth and identity</h2>
+            <table>
+              <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>PSON_API_KEY</code></td><td>none</td><td>Shared API secret.</td></tr>
+                <tr><td><code>PSON_DEFAULT_API_KEY_ROLE</code></td><td><code>editor</code></td><td>Role for API-key callers.</td></tr>
+                <tr><td><code>PSON_ENFORCE_TENANT</code></td><td><code>false</code></td><td>Require tenant binding.</td></tr>
+                <tr><td><code>PSON_ENFORCE_SUBJECT_USER</code></td><td><code>false</code></td><td>Require subject-user binding for user-data operations.</td></tr>
+                <tr><td><code>PSON_JWT_SECRET</code></td><td>none</td><td>HS256 JWT secret.</td></tr>
+                <tr><td><code>PSON_JWT_PUBLIC_KEY</code></td><td>none</td><td>RS256 public key.</td></tr>
+                <tr><td><code>PSON_JWKS_URL</code></td><td>none</td><td>Remote JWKS URL.</td></tr>
+              </tbody>
+            </table>
+            <h2 id="mcp">MCP</h2>
+            <table>
+              <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>PSON_DEFAULT_MCP_SUBJECT_ROLE</code></td><td><code>editor</code></td><td>Role for subject-bound MCP callers arriving as anonymous.</td></tr>
+                <tr><td><code>PSON_MCP_ALLOW_ARGUMENT_SUBJECT_FALLBACK</code></td><td><code>true</code></td><td>Allows <code>arguments.user_id</code> as a subject fallback.</td></tr>
+                <tr><td><code>PSON_MCP_SUBJECT_FALLBACK</code></td><td><code>session_hash</code></td><td><code>session_hash</code>, <code>bearer_hash</code>, or <code>disabled</code>.</td></tr>
+                <tr><td><code>PSON_OPENAI_APPS_CHALLENGE_TOKEN</code></td><td>none</td><td>OpenAI Apps domain challenge token.</td></tr>
+              </tbody>
+            </table>
+            <h2 id="providers">Providers</h2>
+            <table>
+              <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>PSON_AI_PROVIDER</code></td><td>none</td><td><code>openai</code>, <code>anthropic</code>, or <code>openai-compatible</code>.</td></tr>
+                <tr><td><code>OPENAI_API_KEY</code></td><td>none</td><td>OpenAI key.</td></tr>
+                <tr><td><code>ANTHROPIC_API_KEY</code></td><td>none</td><td>Anthropic key.</td></tr>
+                <tr><td><code>PSON_AI_API_KEY</code></td><td>none</td><td>Generic provider key.</td></tr>
+                <tr><td><code>PSON_AI_MODEL</code></td><td>provider default</td><td>Model override.</td></tr>
+                <tr><td><code>PSON_AI_BASE_URL</code></td><td>provider default</td><td>Base URL override.</td></tr>
+                <tr><td><code>PSON_AI_TIMEOUT_MS</code></td><td><code>20000</code></td><td>Provider request timeout.</td></tr>
+              </tbody>
+            </table>
+            <h2 id="neo4j">Neo4j</h2>
+            <table>
+              <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr><td><code>PSON_NEO4J_URI</code></td><td>none</td><td>Neo4j connection URI.</td></tr>
+                <tr><td><code>PSON_NEO4J_USERNAME</code></td><td>none</td><td>Neo4j username.</td></tr>
+                <tr><td><code>PSON_NEO4J_PASSWORD</code></td><td>none</td><td>Neo4j password.</td></tr>
+                <tr><td><code>PSON_NEO4J_DATABASE</code></td><td>none</td><td>Optional database name.</td></tr>
+                <tr><td><code>PSON_NEO4J_ENABLED</code></td><td><code>true</code></td><td>Disable Neo4j integration without deleting config.</td></tr>
+              </tbody>
+            </table>
+            ${githubLink("usage/configuration-reference.md")}
+          `
+        },
+        {
+          slug: "implementation/personalized-edtech",
+          title: "Personalized EdTech startup",
+          summary: "A full startup playbook for tutoring, practice generation, learner state, teacher dashboards, and privacy-safe personalization.",
+          content: `
+            <div class="callout">
+              Example startup: an adaptive tutoring platform that personalizes explanation style, practice sets, pacing, reminders, and intervention strategy for every learner.
+            </div>
+            <h2 id="surfaces">Product surfaces</h2>
+            <ul>
+              <li>AI tutor chat</li>
+              <li>Lesson planner</li>
+              <li>Adaptive practice generator</li>
+              <li>Teacher/parent summary</li>
+              <li>Study schedule coach</li>
+              <li>Intervention recommender</li>
+            </ul>
+            <h2 id="profile">Learner profile boot</h2>
+            <pre><code>const profile = await pson.ensureProfile({
+  user_id: learner.id,
+  tenant_id: school.id,
+  domains: ["core", "education"],
+  depth: "standard"
+});</code></pre>
+            <h2 id="education-facts">Education facts to observe</h2>
+            <p><code>grade_band</code>, <code>current_subjects</code>, <code>learning_goal</code>, <code>preferred_explanation_style</code>, <code>prefers_visual_examples</code>, <code>prefers_step_by_step</code>, <code>practice_tolerance</code>, <code>frustration_signals</code>, <code>motivation_drivers</code>, <code>assessment_anxiety</code>, <code>schedule_constraints</code>, <code>accessibility_needs</code>.</p>
+            <h2 id="tutor-context">Tutor chat context</h2>
+            <pre><code>const context = await pson.getAgentContext(profile.profile_id, {
+  intent: learnerMessage,
+  domains: ["education", "core"],
+  include_predictions: true,
+  max_items: 16,
+  task_context: {
+    product_surface: "ai_tutor",
+    current_subject: "algebra",
+    current_skill: "two_step_equations"
+  }
+});</code></pre>
+            <h2 id="simulation">Intervention simulation</h2>
+            <pre><code>const sim = await pson.simulate({
+  profile_id: profile.profile_id,
+  domains: ["education"],
+  context: {
+    scenario: "The learner failed three questions in a row.",
+    options: [
+      "Give a full worked example",
+      "Ask a guiding question",
+      "Switch to a visual analogy",
+      "Recommend a short break"
+    ],
+    question: "Which intervention is most likely to keep them engaged?"
+  }
+});</code></pre>
+            <h2 id="mvp-plan">MVP plan</h2>
+            <ul>
+              <li><strong>Week 1:</strong> user auth, learner IDs, profile creation, agent context, explicit fact capture.</li>
+              <li><strong>Week 2:</strong> onboarding questions, practice personalization, provider policy, simulation.</li>
+              <li><strong>Week 3:</strong> teacher dashboard, Postgres storage, tenancy, audit review.</li>
+              <li><strong>Week 4:</strong> education domain module, consent/data deletion, evaluation dataset.</li>
+            </ul>
+            <h2 id="privacy">Safety controls</h2>
+            <ul>
+              <li>Learner/guardian consent and export/delete flows.</li>
+              <li>No medical or diagnostic guesses as observed facts.</li>
+              <li>Inference labels in teacher-facing reports.</li>
+              <li>Restricted fields and tenant isolation.</li>
+            </ul>
+            ${githubLink("startups/personalized-edtech-startup.md")}
+          `
+        },
+        {
+          slug: "implementation/edtech-reference-implementation",
+          title: "EdTech reference implementation",
+          summary: "Concrete learner profile boot, tutor route, practice generator, intervention simulation, teacher dashboard, and privacy controls.",
+          content: `
+            <h2 id="domain-model">Domain model</h2>
+            <pre><code>interface Learner {
+  id: string;
+  school_id: string;
+  display_name: string;
+  grade_band: "elementary" | "middle_school" | "high_school" | "adult";
+}
+
+interface Assignment {
+  id: string;
+  learner_id: string;
+  subject: "math" | "science" | "reading" | "writing";
+  skill: string;
+  due_at?: string;
+}</code></pre>
+            <h2 id="profile-boot">Profile boot</h2>
+            <pre><code>const profile = await pson.ensureProfile({
+  user_id: learner.id,
+  tenant_id: learner.school_id,
+  domains: ["core", "education"],
+  depth: "standard"
+}, psonStore);
+
+await pson.observeFact({
+  profile_id: profile.profile_id,
+  domain: "education",
+  key: "grade_band",
+  value: learner.grade_band,
+  confidence: 1,
+  note: "Imported from learner account settings."
+}, psonStore);</code></pre>
+            <h2 id="tutor-turn">Tutor turn</h2>
+            <pre><code>export async function tutorTurn({ learner, assignment, message }) {
+  const profile = await pson.ensureProfile({
+    user_id: learner.id,
+    tenant_id: learner.school_id,
+    domains: ["core", "education"],
+    depth: "standard"
+  }, psonStore);
+
+  const context = await pson.getAgentContext(profile.profile_id, {
+    intent: message,
+    domains: ["education", "core"],
+    include_predictions: true,
+    max_items: 20,
+    min_confidence: 0.35,
+    task_context: {
+      surface: "ai_tutor",
+      subject: assignment?.subject,
+      skill: assignment?.skill,
+      due_at: assignment?.due_at
+    }
+  }, psonStore);
+
+  return runTutorModel({ learnerMessage: message, psonContext: context, assignment });
+}</code></pre>
+            <h2 id="tutor-prompt">Tutor prompt</h2>
+            <pre><code>You are an adaptive tutor.
+Use PSON context to personalize explanation style, pacing, examples, scaffolding, and encouragement.
+Do not reveal raw profile contents.
+Treat inferred and simulated data as uncertain.
+If the learner explicitly states a preference, store it with pson_observe_fact.
+Do not store diagnoses, medical claims, or sensitive assumptions as observed facts.</code></pre>
+            <h2 id="practice-generator">Practice generator</h2>
+            <pre><code>export async function generatePractice({ learner, subject, skill, minutes }) {
+  const profile = await pson.ensureProfile({
+    user_id: learner.id,
+    tenant_id: learner.school_id,
+    domains: ["education", "core"],
+    depth: "standard"
+  }, psonStore);
+
+  const context = await pson.getAgentContext(profile.profile_id, {
+    intent: \`Generate \${minutes} minutes of practice for \${skill}.\`,
+    domains: ["education", "core"],
+    include_predictions: true,
+    task_context: {
+      surface: "practice_generator",
+      subject,
+      skill,
+      time_budget_minutes: minutes
+    }
+  }, psonStore);
+
+  return runPracticeModel({ psonContext: context, subject, skill, minutes });
+}</code></pre>
+            <h2 id="intervention">Intervention simulation</h2>
+            <pre><code>export async function chooseIntervention({ profileId, recentEvents }) {
+  const policy = await pson.getProviderPolicy(profileId, "simulation", psonStore);
+  if (!policy.allowed) {
+    return {
+      mode: "rules",
+      intervention: "Ask a guiding question and offer a worked example if needed.",
+      policy
+    };
+  }
+
+  return pson.simulate({
+    profile_id: profileId,
+    domains: ["education", "core"],
+    context: {
+      scenario: "Learner appears stuck during active practice.",
+      recent_events: recentEvents,
+      options: ["worked example", "guiding question", "visual analogy", "reduce difficulty", "short break"],
+      question: "Which intervention is most likely to preserve confidence and progress?"
+    },
+    options: {
+      include_reasoning: true,
+      include_evidence: true,
+      explanation_level: "standard"
+    }
+  }, psonStore);
+}</code></pre>
+            <h2 id="teacher-dashboard">Teacher dashboard</h2>
+            <pre><code>export async function getTeacherLearnerSummary({ teacherId, learner, profileId }) {
+  await assertTeacherCanAccessLearner(teacherId, learner.id);
+
+  const context = await pson.getAgentContext(profileId, {
+    intent: "Prepare a privacy-safe teacher summary.",
+    domains: ["education"],
+    include_predictions: false,
+    min_confidence: 0.55,
+    max_items: 20,
+    task_context: { surface: "teacher_dashboard" }
+  }, psonStore);
+
+  return {
+    learner_id: learner.id,
+    observed_preferences: context.personal_data.preferences.filter((item) => item.source === "observed"),
+    inferred_patterns: context.personal_data.behavioral_patterns.filter((item) => item.source === "inferred"),
+    redaction_notes: context.redaction_notes
+  };
+}</code></pre>
+            <h2 id="memory-policy">Memory write policy</h2>
+            <ul>
+              <li>Store: "I understand better with diagrams."</li>
+              <li>Store: "I need a slower pace."</li>
+              <li>Store: "I get anxious before timed quizzes."</li>
+              <li>Do not store: "The learner probably has ADHD."</li>
+              <li>Do not store: "The learner is lazy."</li>
+              <li>Do not store: "The learner is bad at math."</li>
+            </ul>
+            <h2 id="launch-checklist">Launch checklist</h2>
+            <ul>
+              <li>Test learner A cannot read learner B.</li>
+              <li>Test school A cannot read school B.</li>
+              <li>Test provider policy denial when consent scopes are missing.</li>
+              <li>Test safe export redacts sensitive data.</li>
+              <li>Test teacher summary never displays simulated predictions as fact.</li>
+            </ul>
+            ${githubLink("startups/personalized-edtech-reference-implementation.md")}
+          `
+        }
+      ]
+    },
+
+    // ======================================================================
     // API
     // ======================================================================
     {
