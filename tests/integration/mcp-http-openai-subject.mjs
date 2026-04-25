@@ -49,6 +49,24 @@ async function rpcWithHeaders(port, method, params = {}, id = 1, extraHeaders = 
   return response.json();
 }
 
+async function rpcWithoutAuth(port, method, params = {}, id = 1) {
+  const response = await fetch(`http://127.0.0.1:${port}/v1/mcp`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id,
+      method,
+      params
+    })
+  });
+
+  assert.equal(response.status, 200);
+  return response.json();
+}
+
 async function waitForServer(port) {
   const deadline = Date.now() + 10_000;
   let lastError;
@@ -66,7 +84,24 @@ async function waitForServer(port) {
   throw lastError ?? new Error("Timed out waiting for MCP server.");
 }
 
-async function main() {
+async function waitForUnauthedServer(port) {
+  const deadline = Date.now() + 10_000;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      const init = await rpcWithoutAuth(port, "initialize", {}, 1);
+      if (init.result?.protocolVersion) {
+        return;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw lastError ?? new Error("Timed out waiting for unauthenticated MCP server.");
+}
+
+async function withApiServer(env, callback) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pson5-mcp-openai-subject-"));
   const port = await getFreePort();
   const child = spawn(process.execPath, [API_ENTRY], {
@@ -74,11 +109,11 @@ async function main() {
       ...process.env,
       HOST: "127.0.0.1",
       PORT: String(port),
-      PSON_API_KEY: "smoke-secret",
       PSON_ENFORCE_SUBJECT_USER: "true",
       PSON_STORE_BACKEND: "file",
       PSON_STORE_DIR: tempRoot,
-      PSON_ACCESS_AUDIT_ENABLED: "false"
+      PSON_ACCESS_AUDIT_ENABLED: "false",
+      ...env
     },
     stdio: ["ignore", "pipe", "pipe"]
   });
@@ -93,6 +128,18 @@ async function main() {
   });
 
   try {
+    await callback(port);
+  } catch (error) {
+    console.error({ stdout, stderr });
+    throw error;
+  } finally {
+    child.kill();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+}
+
+async function main() {
+  await withApiServer({ PSON_API_KEY: "smoke-secret" }, async (port) => {
     await waitForServer(port);
 
     const tools = await rpc(port, "tools/list", {}, 2);
@@ -169,13 +216,25 @@ async function main() {
     assert.match(denied.error?.message, /subject user/i);
 
     console.log("mcp http openai subject integration passed");
-  } catch (error) {
-    console.error({ stdout, stderr });
-    throw error;
-  } finally {
-    child.kill();
-    fs.rmSync(tempRoot, { recursive: true, force: true });
-  }
+  });
+
+  await withApiServer({}, async (port) => {
+    await waitForUnauthedServer(port);
+    const ensured = await rpcWithoutAuth(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {},
+        _meta: {
+          "openai/subject": "user_subject_no_auth_role"
+        }
+      },
+      10
+    );
+    assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
+    assert.equal(ensured.result.structuredContent.user_id, "user_subject_no_auth_role");
+  });
 }
 
 main().catch((error) => {

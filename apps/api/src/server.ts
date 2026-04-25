@@ -1209,6 +1209,18 @@ function withMcpSubjectUser(caller: CallerContext, subjectUserId: string | null)
   };
 }
 
+function withMcpSubjectDefaultRole(caller: CallerContext): CallerContext {
+  if (!caller.subjectUserId || caller.role !== "anonymous") {
+    return caller;
+  }
+
+  const configuredRole = parseRole(process.env.PSON_DEFAULT_MCP_SUBJECT_ROLE?.trim() ?? "editor");
+  return {
+    ...caller,
+    role: configuredRole === "anonymous" ? "editor" : configuredRole
+  };
+}
+
 function normalizeMcpToolArguments(
   name: PsonAgentToolName,
   args: Record<string, unknown>,
@@ -1929,7 +1941,7 @@ const server = createServer(async (request, response) => {
           writePayload(response, jsonRpcToolAuthError(id, mcpSubject.payload));
           return;
         }
-        const mcpCaller = withMcpSubjectUser(caller, mcpSubject.subjectUserId);
+        const mcpCaller = withMcpSubjectDefaultRole(withMcpSubjectUser(caller, mcpSubject.subjectUserId));
 
         // tools/call is the only MCP method that touches user data, so
         // the subject-user binding is enforced here rather than in the
