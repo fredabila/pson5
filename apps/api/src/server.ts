@@ -1121,6 +1121,17 @@ function toMcpTools(definitions: PsonAgentToolDefinition[]) {
 
 function getMcpInputSchema(tool: PsonAgentToolDefinition): Record<string, unknown> {
   const schema = structuredClone(tool.input_schema);
+  const properties = asObject(schema.properties);
+
+  if (tool.name === "pson_simulate") {
+    const contextProperty = properties ? asObject(properties.context) : null;
+    if (contextProperty) {
+      contextProperty.description =
+        "Required. Describe the hypothetical situation or decision to simulate, for example {\"scenario\":\"User is choosing a response style\",\"question\":\"What would fit this user best?\"}.";
+      contextProperty.additionalProperties = true;
+    }
+  }
+
   if (
     tool.name !== "pson_load_profile_by_user_id" &&
     tool.name !== "pson_create_profile" &&
@@ -1132,7 +1143,6 @@ function getMcpInputSchema(tool: PsonAgentToolDefinition): Record<string, unknow
   const required = Array.isArray(schema.required)
     ? schema.required.filter((field) => field !== "user_id")
     : [];
-  const properties = asObject(schema.properties);
   const userIdProperty = properties ? asObject(properties.user_id) : null;
   if (userIdProperty) {
     userIdProperty.description =
@@ -1345,6 +1355,14 @@ function normalizeMcpToolArguments(
     tenantId
   ) {
     normalized.tenant_id = tenantId;
+  }
+
+  if (name === "pson_simulate" && !asObject(normalized.context)) {
+    normalized.context = {
+      scenario: "General profile simulation requested through MCP without a specific context.",
+      question: "Based on the available profile, what likely preferences, behaviors, or response patterns are relevant?",
+      domains: Array.isArray(normalized.domains) ? normalized.domains : undefined
+    };
   }
 
   return normalized;

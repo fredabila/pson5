@@ -156,6 +156,14 @@ async function main() {
       "MCP schema must hide user_id so ChatGPT does not invent one"
     );
 
+    const simulateTool = tools.result.tools.find((tool) => tool.name === "pson_simulate");
+    assert.ok(simulateTool, "pson_simulate is advertised");
+    assert.ok(
+      simulateTool.inputSchema.required?.includes("context"),
+      "MCP schema must require simulation context"
+    );
+    assert.match(simulateTool.inputSchema.properties.context.description, /Required/);
+
     const ensured = await rpc(
       port,
       "tools/call",
