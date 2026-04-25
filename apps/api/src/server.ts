@@ -371,6 +371,7 @@ function writePayload(
 
 const MCP_SESSION_HEADER = "mcp-session-id";
 const OPENAI_SUBJECT_META_KEY = "openai/subject";
+const allowMcpArgumentSubjectFallback = process.env.PSON_MCP_ALLOW_ARGUMENT_SUBJECT_FALLBACK !== "false";
 
 /**
  * Ensure a Streamable HTTP session id is in scope for the current MCP
@@ -1130,7 +1131,11 @@ function getMcpInputSchema(tool: PsonAgentToolDefinition): Record<string, unknow
   const userIdProperty = properties ? asObject(properties.user_id) : null;
   if (userIdProperty) {
     userIdProperty.description =
-      "Optional for MCP clients. ChatGPT Apps calls derive this from _meta[\"openai/subject\"] when omitted.";
+      "Do not provide this in ChatGPT Apps. The server derives it from authenticated MCP subject metadata.";
+  }
+
+  if (properties) {
+    delete properties.user_id;
   }
 
   return {
@@ -1240,7 +1245,9 @@ async function resolveMcpCallerForTool(
   const argumentUserId = typeof args.user_id === "string" && args.user_id.trim().length > 0
     ? args.user_id.trim()
     : null;
-  let resolvedSubjectUserId = subjectUserId ?? (canDeriveMcpSubjectFromUserIdTool(name) ? argumentUserId : null);
+  let resolvedSubjectUserId =
+    subjectUserId ??
+    (allowMcpArgumentSubjectFallback && canDeriveMcpSubjectFromUserIdTool(name) ? argumentUserId : null);
 
   const profileId = typeof args.profile_id === "string" && args.profile_id.trim().length > 0
     ? args.profile_id.trim()

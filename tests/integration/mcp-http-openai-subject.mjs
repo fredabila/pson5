@@ -150,6 +150,11 @@ async function main() {
       !ensureTool.inputSchema.required?.includes("user_id"),
       "MCP schema must not force ChatGPT to invent user_id"
     );
+    assert.equal(
+      ensureTool.inputSchema.properties.user_id,
+      undefined,
+      "MCP schema must hide user_id so ChatGPT does not invent one"
+    );
 
     const ensured = await rpc(
       port,
