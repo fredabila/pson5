@@ -1,0 +1,38 @@
+# Keep the build context lean. The Dockerfile only needs the manifests,
+# tsconfigs, and source for `packages/` and `apps/api`. Everything else
+# either bloats the upload or risks leaking secrets.
+
+node_modules
+**/node_modules
+**/dist
+**/.tsbuildinfo
+**/tsconfig.tsbuildinfo
+
+.git
+.github
+.vscode
+.idea
+
+# Other workspaces aren't part of the API runtime
+apps/cli
+apps/web
+apps/docs-site
+examples
+skills
+docs
+remotion
+remotion-out
+data
+
+# Local artefacts and secrets
+*.log
+*.local
+.env
+.env.*
+!.env.example
+*.tgz
+
+# Tests and dev tooling
+tests
+playground
+scripts

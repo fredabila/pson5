@@ -24,17 +24,32 @@ ChatGPT calls `pson_ensure_profile` once at the start of a conversation, then `p
 
 ### 1. Configure auth
 
-```bash
-# HS256 — simplest path. Pick a 256-bit random secret.
-export PSON_JWT_SECRET="$(openssl rand -hex 32)"
+There are two practical patterns. Pick one based on how you want to identify each ChatGPT user:
 
-# Bind every request to its token's user — required for the
-# single-tenant ChatGPT App flow.
+#### Pattern A — shared API key + `openai-user-id` header (recommended)
+
+ChatGPT passes a stable per-user identifier in the `openai-user-id` request header on every MCP call. With API-key auth, you ship **one** shared bearer token to ChatGPT (proves the request is from your app) and PSON5 derives the per-user PSON profile from the header. Each ChatGPT user automatically lands on their own profile — no per-user token issuance.
+
+```bash
+export PSON_API_KEY="$(openssl rand -hex 32)"        # the shared bearer
+
 export PSON_ENFORCE_SUBJECT_USER=true
-export PSON_JWT_USER_ID_CLAIM=sub  # whatever claim holds the user id
+export PSON_SUBJECT_USER_HEADER=openai-user-id       # trust ChatGPT's user header
 ```
 
-If you'd rather verify tokens issued by an existing IdP (Auth0, Clerk, your own auth service), set `PSON_JWT_PUBLIC_KEY` to the IdP's public key in PEM form, or `PSON_JWKS_PATH` / `PSON_JWKS_JSON` for JWKS.
+Trust model: anyone with the bearer can claim to be any user_id. That's fine here because the bearer is held by ChatGPT only; OpenAI sets the header truthfully. If you also accept traffic from anything that isn't ChatGPT, don't use this pattern — the header becomes spoofable.
+
+#### Pattern B — per-user JWTs
+
+You mint a fresh JWT for each user (typically when they sign up on your website) and they paste it into ChatGPT. Slower onboarding, but doesn't trust the proxy:
+
+```bash
+export PSON_JWT_SECRET="$(openssl rand -hex 32)"     # 256-bit random
+export PSON_ENFORCE_SUBJECT_USER=true
+export PSON_JWT_USER_ID_CLAIM=sub                    # claim that holds user_id
+```
+
+If you'd rather verify tokens from an existing IdP (Auth0, Clerk, your own auth service), set `PSON_JWT_PUBLIC_KEY` to the IdP's public key in PEM form, or `PSON_JWKS_PATH` / `PSON_JWKS_JSON` for JWKS.
 
 ### 2. Pick a storage backend
 
@@ -54,7 +69,7 @@ curl https://your-api.example.com/v1/mcp \
 
 You should see a response with `serverInfo.name === "@pson5/api"`, the current package version, and an `Mcp-Session-Id` response header.
 
-## Issuing user tokens
+## Issuing user tokens (Pattern B only — skip if you went with the `openai-user-id` header)
 
 Each ChatGPT user needs a JWT bound to their PSON `user_id`. The token's `user_id` claim is what the API uses to look up or create their profile.
 
