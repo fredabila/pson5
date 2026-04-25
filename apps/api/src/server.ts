@@ -1464,6 +1464,30 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    // OpenAI ChatGPT Apps domain verification. The console asks for a
+    // token to be served at this exact path so it can prove the
+    // developer controls the origin. We pull the token from an env var
+    // (so it can be rotated without redeploying code) and respond with
+    // it as plain text. No auth — by design, this URL is meant to be
+    // hit anonymously.
+    if (
+      request.method === "GET" &&
+      url.pathname === "/.well-known/openai-apps-challenge"
+    ) {
+      const challengeToken = process.env.PSON_OPENAI_APPS_CHALLENGE_TOKEN?.trim() ?? "";
+      if (!challengeToken) {
+        response.writeHead(404, { "content-type": "text/plain" });
+        response.end("Domain verification token not configured.");
+        return;
+      }
+      response.writeHead(200, {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "no-store"
+      });
+      response.end(challengeToken);
+      return;
+    }
+
     const auth = await authenticateRequest(request);
     if (!auth.ok) {
       await auditDenied(request, storeRuntime.storeOptions, auth.payload, {
