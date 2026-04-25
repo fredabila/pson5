@@ -40,7 +40,9 @@
     "test:provider-retry": "node tests/integration/provider-retry.mjs",
     "test:cli-json": "node tests/integration/cli-json-output.mjs",
     "test:observe-fact": "node tests/integration/observe-fact.mjs",
-    "pack:publishable": "npm pack --workspace @pson5/core-types --workspace @pson5/schemas --workspace @pson5/privacy --workspace @pson5/serialization-engine --workspace @pson5/provider-engine --workspace @pson5/modeling-engine --workspace @pson5/state-engine --workspace @pson5/graph-engine --workspace @pson5/neo4j-store --workspace @pson5/simulation-engine --workspace @pson5/acquisition-engine --workspace @pson5/agent-context --workspace @pson5/sdk --workspace @pson5/postgres-store --workspace @pson5/cli"
+    "pack:publishable": "npm pack --workspace @pson5/core-types --workspace @pson5/schemas --workspace @pson5/privacy --workspace @pson5/serialization-engine --workspace @pson5/provider-engine --workspace @pson5/modeling-engine --workspace @pson5/state-engine --workspace @pson5/graph-engine --workspace @pson5/neo4j-store --workspace @pson5/simulation-engine --workspace @pson5/acquisition-engine --workspace @pson5/agent-context --workspace @pson5/sdk --workspace @pson5/postgres-store --workspace @pson5/cli",
+    "release:plan": "node scripts/publish-all.mjs",
+    "release:publish": "node scripts/publish-all.mjs --apply"
   },
   "engines": {
     "node": ">=20"

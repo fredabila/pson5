@@ -1,6 +1,6 @@
 {
   "name": "@pson5/serialization-engine",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Profile initialization, import/export, storage adapters, and persistence helpers for PSON5.",
   "license": "MIT",
   "repository": {

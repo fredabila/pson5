@@ -1,6 +1,6 @@
 {
   "name": "@pson5/agent-context",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Agent-safe personalization projection layer for PSON5 profiles.",
   "license": "MIT",
   "repository": {
@@ -45,7 +45,7 @@
   },
   "dependencies": {
     "@pson5/core-types": "0.2.0",
-    "@pson5/serialization-engine": "0.2.1",
+    "@pson5/serialization-engine": "0.2.2",
     "@pson5/state-engine": "0.2.0"
   }
 }
