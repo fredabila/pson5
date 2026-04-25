@@ -306,6 +306,25 @@ async function main() {
     assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
     assert.equal(ensured.result.structuredContent.user_id, "user_viewer_can_ensure");
   });
+
+  await withApiServer({ PSON_API_KEY: "smoke-secret" }, async (port) => {
+    await waitForServer(port);
+    const ensured = await rpc(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {
+          tenant_id: "default",
+          domains: ["core"],
+          depth: "light"
+        }
+      },
+      30
+    );
+    assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
+    assert.match(ensured.result.structuredContent.user_id, /^mcp_[a-f0-9]{32}$/);
+  });
 }
 
 main().catch((error) => {

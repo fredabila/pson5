@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import {
+  createHash,
   createHmac,
   createPublicKey,
   randomUUID,
@@ -372,6 +373,9 @@ function writePayload(
 const MCP_SESSION_HEADER = "mcp-session-id";
 const OPENAI_SUBJECT_META_KEY = "openai/subject";
 const allowMcpArgumentSubjectFallback = process.env.PSON_MCP_ALLOW_ARGUMENT_SUBJECT_FALLBACK !== "false";
+const mcpSubjectFallbackMode = (process.env.PSON_MCP_SUBJECT_FALLBACK?.trim().toLowerCase() || "bearer_hash") as
+  | "bearer_hash"
+  | "disabled";
 
 /**
  * Ensure a Streamable HTTP session id is in scope for the current MCP
@@ -1203,6 +1207,19 @@ function resolveMcpSubjectUserId(
   return { ok: true, subjectUserId: caller.subjectUserId ?? metaSubjectUserId };
 }
 
+function getMcpFallbackSubjectUserId(request: import("node:http").IncomingMessage): string | null {
+  if (mcpSubjectFallbackMode === "disabled") {
+    return null;
+  }
+
+  const credential = getBearerToken(request) ?? getHeaderValue(request, "x-api-key");
+  if (!credential) {
+    return null;
+  }
+
+  return `mcp_${createHash("sha256").update(credential).digest("hex").slice(0, 32)}`;
+}
+
 function withMcpSubjectUser(caller: CallerContext, subjectUserId: string | null): CallerContext {
   if (!subjectUserId || caller.subjectUserId === subjectUserId) {
     return caller;
@@ -1240,7 +1257,8 @@ async function resolveMcpCallerForTool(
   name: PsonAgentToolName,
   args: Record<string, unknown>,
   tenantId: string | null,
-  storeOptions: ProfileStoreOptions
+  storeOptions: ProfileStoreOptions,
+  fallbackSubjectUserId: string | null = null
 ): Promise<{ ok: true; caller: CallerContext } | { ok: false; payload: ReturnType<typeof errorJson> }> {
   const argumentUserId = typeof args.user_id === "string" && args.user_id.trim().length > 0
     ? args.user_id.trim()
@@ -1270,6 +1288,8 @@ async function resolveMcpCallerForTool(
       throw error;
     }
   }
+
+  resolvedSubjectUserId ??= fallbackSubjectUserId;
 
   if (subjectUserId && argumentUserId && subjectUserId !== argumentUserId) {
     return {
@@ -2012,6 +2032,7 @@ const server = createServer(async (request, response) => {
           writePayload(response, jsonRpcToolAuthError(id, mcpSubject.payload));
           return;
         }
+        const mcpFallbackSubjectUserId = getMcpFallbackSubjectUserId(request);
 
         const name = params.name;
         const args =
@@ -2031,7 +2052,8 @@ const server = createServer(async (request, response) => {
           name as PsonAgentToolName,
           args as Record<string, unknown>,
           requestTenantId,
-          storeRuntime.storeOptions
+          storeRuntime.storeOptions,
+          mcpFallbackSubjectUserId
         );
         if (!mcpCallerResult.ok) {
           writePayload(response, jsonRpcToolAuthError(id, mcpCallerResult.payload));
