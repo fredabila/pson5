@@ -37,38 +37,44 @@ const VOICES = [
  */
 const LINES = [
   {
-    id: "demo-01-intro",
+    id: "demo-01-hook",
     text:
-      "So here's the PSON5 chat app I just built. It connects Claude to a structured user profile — one it can actually reason over across conversations, not just a memory blob."
+      "Memory in AI agents today is a black box. Your name, a preference, a model-generated prediction — all stored as indistinguishable text, without a contract for which is which. PSON5 is an open-source personalization standard that treats user memory as infrastructure instead."
   },
   {
-    id: "demo-02-type",
+    id: "demo-02-layers",
     text:
-      "I'll start with something simple. I tell it my name, and watch what happens on the right."
+      "Every user profile is split across three strictly-separated layers — observed, inferred, simulated. The separation is enforced in the TypeScript type system and at every engine boundary. It is not a convention you opt into. It is the architectural law of the codebase."
   },
   {
-    id: "demo-03-observed",
+    id: "demo-03-observe",
     text:
-      "There — the assistant called pson_observe_fact, and my name shows up in the observed lane. Free-form facts, no pre-written questions needed."
+      "Here is Claude running a chatbot backed by the PSON5 SDK. I introduce myself. The pson_observe_fact primitive fires, writing my name directly to the observed layer with agent-observation provenance — a new primitive shipped during this hackathon to bridge open conversation into structured memory without a pre-registered question."
   },
   {
-    id: "demo-04-registry",
+    id: "demo-04-infer",
     text:
-      "Now it asks me a structured question from the registry. When I answer, pson_learn fires with the exact question id, and the answer lands in observed."
+      "A few turns in, the inference engine runs on read. Three traits emerge — each carrying a confidence score, and evidence references back to the specific observed facts that support it. This is not summarization. It is a derivation trail you can audit."
   },
   {
-    id: "demo-05-inferred",
+    id: "demo-05-simulate",
     text:
-      "After a few turns, the inferred lane starts filling in. These are traits the modeling engine derives — each with its own confidence score and evidence trail."
+      "Now the demonstration. Ask it to simulate a decision. pson_simulate returns more than a yes or no. Prediction, confidence, reasoning that cites the inferred traits by name, and caveats the engine is honest about. Every claim grounded in something measured."
   },
   {
-    id: "demo-06-simulate",
+    id: "demo-06-researcher",
     text:
-      "And now the payoff. I ask it to simulate a decision, and the engine returns a prediction grounded in everything observed and inferred. Reasoning and caveats included."
+      "Same infrastructure, a different shape. A Claude Managed Agent taking on the identity of a fictional Anthropic researcher. On turn one it seeds twenty persona facts. Ask how she would design Claude's reward model — she answers in character, reasoning through pson_simulate against her own profile."
   },
   {
-    id: "demo-07-outro",
-    text: "Three separate layers, always. That's PSON5."
+    id: "demo-07-infra",
+    text:
+      "Underneath: fifteen MIT packages on npm. A TypeScript SDK, an Ink-based interactive CLI, a hand-rolled HTTP API with MCP support, Neo4j and Postgres storage adapters, a portable .pson file format. Merge at five-thousand-trait scale runs in three milliseconds."
+  },
+  {
+    id: "demo-08-close",
+    text:
+      "Three layers, always separate. That is the hard rule. That is what makes agents built on PSON5 actually able to reason."
   }
 ];
 

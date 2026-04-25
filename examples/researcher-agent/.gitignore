@@ -1,0 +1,7 @@
+node_modules/
+dist/
+store/
+.env
+.env.local
+.ids.json
+*.log

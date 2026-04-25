@@ -27,8 +27,9 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="ChatAppDemo"
         component={ChatAppDemo}
-        // ~66 seconds of narration + outro hold → 2010 frames at 30fps.
-        durationInFrames={2010}
+        // 8-scene narration (~2:37) across hook → layers → chat-app →
+        // researcher-agent → infrastructure → close.
+        durationInFrames={4720}
         fps={VIDEO.fps}
         width={VIDEO.width}
         height={VIDEO.height}

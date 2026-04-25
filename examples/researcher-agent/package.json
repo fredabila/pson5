@@ -1,0 +1,29 @@
+{
+  "name": "@pson5/example-researcher-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Claude Managed Agent that takes on the identity of a fictional Anthropic researcher (Dr. Amelia Kwan). Uses PSON5 as the persona's cognitive substrate — the agent observes facts about itself, then simulates how the persona would have approached real model-building decisions.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "setup": "tsx scripts/setup.ts",
+    "dev": "tsx src/run.ts",
+    "start": "tsx src/run.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
+    "@pson5/sdk": "0.2.1",
+    "@pson5/core-types": "0.2.0",
+    "@pson5/serialization-engine": "0.2.1",
+    "@pson5/simulation-engine": "0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@pson5/example-chat-app-pro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Production-shape chat app demonstrating PSON5 with cloud Postgres storage (Neon), LLM-driven generative question flow, and a live force-directed graph visualization of the profile.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "db:init": "tsx scripts/init-db.ts",
+    "db:grant-ai-scopes": "tsx scripts/grant-ai-scopes.ts",
+    "dev": "concurrently -k -n server,web -c magenta,cyan \"npm run dev:server\" \"npm run dev:web\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "npm run build:web && tsc -p server/tsconfig.json",
+    "start": "node dist/server/index.js",
+    "check": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit",
+    "build:web": "vite build --config web/vite.config.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
+    "@neondatabase/serverless": "^0.10.0",
+    "@pson5/sdk": "0.2.1",
+    "@pson5/core-types": "0.2.0",
+    "@pson5/serialization-engine": "0.2.1",
+    "@pson5/postgres-store": "0.2.1",
+    "@pson5/acquisition-engine": "0.2.1",
+    "@pson5/provider-engine": "0.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.0",
+    "concurrently": "^9.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
