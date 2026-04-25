@@ -89,6 +89,26 @@ export class PsonClient {
     return findProfilesByUserId(userId, options);
   }
 
+  /**
+   * Idempotent get-or-create for the profile bound to a user_id. Returns
+   * the existing profile if one exists; otherwise initializes a fresh
+   * profile with the provided input (or sensible defaults) and returns
+   * that. Designed for cold-start agent flows — notably ChatGPT Apps —
+   * where the agent receives a user identity from the bearer token and
+   * just wants "the profile for this person", without having to chain a
+   * load → catch-not-found → create dance.
+   */
+  public async ensureProfile(
+    input: InitProfileInput,
+    options?: ProfileStoreOptions
+  ): Promise<PsonProfile> {
+    const existing = await findProfilesByUserId(input.user_id, options);
+    if (existing.length > 0) {
+      return loadProfileByUserId(input.user_id, options);
+    }
+    return initProfile(input, options);
+  }
+
   public async import(document: unknown, options?: ImportProfileOptions): Promise<PsonProfile> {
     return importProfileDocument(document, options);
   }

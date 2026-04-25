@@ -6,6 +6,7 @@ import type { PsonClient } from "./index.js";
 export type PsonAgentToolName =
   | "pson_load_profile_by_user_id"
   | "pson_create_profile"
+  | "pson_ensure_profile"
   | "pson_get_agent_context"
   | "pson_get_next_questions"
   | "pson_learn"
@@ -57,7 +58,22 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
       type: "function",
       name: "pson_create_profile",
       description:
-        "Create a fresh PSON profile for a user who doesn't have one yet. Call this only after pson_load_profile_by_user_id returned nothing for the user_id. The profile starts empty and grows via pson_observe_fact (free-form facts) and pson_learn (structured answers).",
+        "Create a fresh PSON profile for a user who doesn't have one yet. Call this only after pson_load_profile_by_user_id returned nothing for the user_id. The profile starts empty and grows via pson_observe_fact (free-form facts) and pson_learn (structured answers). Prefer pson_ensure_profile in single-user agent flows where you just want 'the profile for this user'.",
+      input_schema: objectSchema(
+        {
+          user_id: { type: "string" },
+          tenant_id: { type: "string" },
+          domains: { type: "array", items: { type: "string" } },
+          depth: { type: "string", enum: ["light", "standard", "deep"] }
+        },
+        ["user_id"]
+      )
+    },
+    {
+      type: "function",
+      name: "pson_ensure_profile",
+      description:
+        "Get the PSON profile for a user, creating it on the fly if one doesn't exist yet. This is the canonical onboarding primitive for single-user agent integrations (ChatGPT Apps, custom assistants): call it once at the start of a conversation and you'll get back a profile you can read from and write to. Idempotent — safe to call repeatedly. Use the strict pson_load_profile_by_user_id / pson_create_profile pair only when you specifically need to distinguish 'existed' from 'just created'.",
       input_schema: objectSchema(
         {
           user_id: { type: "string" },
@@ -251,6 +267,20 @@ export function createPsonAgentToolExecutor(
             depth: asDepth(args.depth)
           };
           return client.createAndSaveProfile(input, storeOptions);
+        }
+
+        case "pson_ensure_profile": {
+          if (typeof args.user_id !== "string") {
+            throw new Error("pson_ensure_profile requires user_id.");
+          }
+
+          const input: InitProfileInput = {
+            user_id: args.user_id,
+            tenant_id: typeof args.tenant_id === "string" ? args.tenant_id : undefined,
+            domains: asStringArray(args.domains),
+            depth: asDepth(args.depth)
+          };
+          return client.ensureProfile(input, storeOptions);
         }
 
         case "pson_get_agent_context": {

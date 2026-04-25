@@ -1014,6 +1014,12 @@ function getToolRoutePolicy(toolName: PsonAgentToolName): RemoteToolRoutePolicy 
         requiredScopes: ["profiles:write"],
         operation: "tool-create-profile"
       };
+    case "pson_ensure_profile":
+      return {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write"],
+        operation: "tool-ensure-profile"
+      };
     case "pson_get_agent_context":
       return {
         requiredRole: "viewer",
