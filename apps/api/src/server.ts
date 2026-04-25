@@ -895,7 +895,8 @@ function parseRole(rawRole: string | undefined): CallerRole {
 
 function getCallerContext(
   request: import("node:http").IncomingMessage,
-  auth: { authSource: AuthSource; jwtClaims?: JwtIdentityClaims }
+  auth: { authSource: AuthSource; jwtClaims?: JwtIdentityClaims },
+  options?: { skipSubjectUserCheck?: boolean }
 ): { ok: true; context: CallerContext } | { ok: false; payload: ReturnType<typeof errorJson> } {
   const headerCallerId = getHeaderValue(request, callerIdHeaderName) ?? null;
   const headerSubjectUserId = getHeaderValue(request, subjectUserHeaderName) ?? null;
@@ -936,7 +937,7 @@ function getCallerContext(
     };
   }
 
-  if (enforceSubjectUserBinding && !subjectUserId) {
+  if (enforceSubjectUserBinding && !subjectUserId && !options?.skipSubjectUserCheck) {
     return {
       ok: false,
       payload: errorJson("subject_user_required", `Missing required subject user header '${subjectUserHeaderName}'.`, 400)
@@ -1510,7 +1511,18 @@ const server = createServer(async (request, response) => {
     }
     const requestTenantId = tenantValidation.tenantId;
 
-    const callerValidation = getCallerContext(request, auth);
+    // The MCP endpoint multiplexes discovery methods (initialize,
+    // tools/list, ping, prompts/list, resources/list, …) and the
+    // user-data-touching tools/call. Discovery methods don't read or
+    // write any user's profile, so requiring an `openai-user-id` header
+    // for them rejects ChatGPT's app-scan probes — those run server-to-
+    // server before any user is in the picture. We defer the subject-
+    // user check into the /v1/mcp handler so it fires only on
+    // tools/call.
+    const isMcpEndpoint = request.method === "POST" && url.pathname === "/v1/mcp";
+    const callerValidation = getCallerContext(request, auth, {
+      skipSubjectUserCheck: isMcpEndpoint
+    });
     if (!callerValidation.ok) {
       await auditDenied(request, storeRuntime.storeOptions, callerValidation.payload, {
         operation: "request-caller-validation",
@@ -1745,6 +1757,23 @@ const server = createServer(async (request, response) => {
       }
 
       if (body.method === "tools/call") {
+        // tools/call is the only MCP method that touches user data, so
+        // the subject-user binding is enforced here rather than in the
+        // request-level caller-validation step (which is bypassed for
+        // MCP so OpenAI's discovery probes — initialize, tools/list,
+        // ping, …  — work without a user being in scope yet).
+        if (enforceSubjectUserBinding && !caller.subjectUserId) {
+          writePayload(
+            response,
+            jsonRpcError(
+              id,
+              -32001,
+              `Missing required subject user header '${subjectUserHeaderName}' for tools/call.`
+            )
+          );
+          return;
+        }
+
         const params = typeof body.params === "object" && body.params !== null ? body.params : {};
         const name = params.name;
         const args = typeof params.arguments === "object" && params.arguments !== null ? params.arguments : {};
