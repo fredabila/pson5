@@ -1,61 +1,37 @@
-# Fly configuration for @pson5/api. Connect this repo through the Fly
-# GitHub integration and Fly will use this file + the root Dockerfile
-# to build and deploy.
+# fly.toml app configuration file generated for pson5 on 2026-04-25T03:17:10Z
 #
-# Before first deploy:
-#   • change `app` to a name that's unique on your Fly account
-#   • `flyctl secrets set DATABASE_URL=postgres://… PSON_JWT_SECRET=$(openssl rand -hex 32)`
-#   • `flyctl deploy` (or trigger via the GitHub integration)
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "pson5-api"
-primary_region = "iad"
+app = 'pson5'
+primary_region = 'iad'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  PORT = "8080"
-  NODE_ENV = "production"
-
-  # Storage. Set to "filesystem" only if you also mount a volume
-  # below — Fly machines have ephemeral disks otherwise.
-  PSON_PROFILE_STORE = "postgres"
-
-  # Auth. Bind every request to its caller's user id. With ChatGPT
-  # Apps in API-key mode the user identity arrives in the
-  # `openai-user-id` header — set that as the subject-user header so a
-  # single shared API key fans out to one PSON profile per ChatGPT
-  # user. If you'd rather mint per-user JWTs yourself, drop
-  # PSON_SUBJECT_USER_HEADER and set PSON_JWT_USER_ID_CLAIM instead.
-  PSON_ENFORCE_SUBJECT_USER = "true"
-  PSON_SUBJECT_USER_HEADER = "openai-user-id"
-  PSON_JWT_USER_ID_CLAIM = "sub"
-
-  # Audit logs default to ./data/audit/ — that's ephemeral on Fly
-  # without a volume. Disable until you wire a durable sink (Postgres,
-  # Logflare, Better Stack, …) or attach a volume.
-  PSON_ACCESS_AUDIT_ENABLED = "false"
+  NODE_ENV = 'production'
+  PORT = '8080'
+  PSON_ACCESS_AUDIT_ENABLED = 'false'
+  PSON_ENFORCE_SUBJECT_USER = 'true'
+  PSON_JWT_USER_ID_CLAIM = 'sub'
+  PSON_PROFILE_STORE = 'postgres'
+  PSON_SUBJECT_USER_HEADER = 'openai-user-id'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
   [[http_service.checks]]
-    interval = "30s"
-    timeout = "5s"
-    grace_period = "10s"
-    method = "GET"
-    path = "/health"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "512mb"
-
-# Uncomment when switching to filesystem storage. Fly volumes are
-# region-pinned and only attach to one machine at a time.
-# [mounts]
-#   source = "pson5_data"
-#   destination = "/app/data"
+  size = 'shared-cpu-1x'
+  memory = '512mb'
