@@ -369,6 +369,7 @@ function writePayload(
 }
 
 const MCP_SESSION_HEADER = "mcp-session-id";
+const OPENAI_SUBJECT_META_KEY = "openai/subject";
 
 /**
  * Ensure a Streamable HTTP session id is in scope for the current MCP
@@ -1091,8 +1092,101 @@ function toMcpTools(definitions: PsonAgentToolDefinition[]) {
   return definitions.map((tool) => ({
     name: tool.name,
     description: tool.description,
-    inputSchema: tool.input_schema
+    inputSchema: getMcpInputSchema(tool)
   }));
+}
+
+function getMcpInputSchema(tool: PsonAgentToolDefinition): Record<string, unknown> {
+  const schema = structuredClone(tool.input_schema);
+  if (
+    tool.name !== "pson_load_profile_by_user_id" &&
+    tool.name !== "pson_create_profile" &&
+    tool.name !== "pson_ensure_profile"
+  ) {
+    return schema;
+  }
+
+  const required = Array.isArray(schema.required)
+    ? schema.required.filter((field) => field !== "user_id")
+    : [];
+  const properties = asObject(schema.properties);
+  const userIdProperty = properties ? asObject(properties.user_id) : null;
+  if (userIdProperty) {
+    userIdProperty.description =
+      "Optional for MCP clients. ChatGPT Apps calls derive this from _meta[\"openai/subject\"] when omitted.";
+  }
+
+  return {
+    ...schema,
+    required
+  };
+}
+
+function getMcpToolCallMeta(params: Record<string, unknown>): Record<string, unknown> {
+  return asObject(params._meta) ?? {};
+}
+
+function getMcpMetaString(meta: Record<string, unknown>, key: string): string | null {
+  const value = meta[key];
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+}
+
+function resolveMcpSubjectUserId(
+  caller: CallerContext,
+  params: Record<string, unknown>
+): { ok: true; subjectUserId: string | null } | { ok: false; payload: ReturnType<typeof errorJson> } {
+  const metaSubjectUserId = getMcpMetaString(getMcpToolCallMeta(params), OPENAI_SUBJECT_META_KEY);
+  if (caller.subjectUserId && metaSubjectUserId && caller.subjectUserId !== metaSubjectUserId) {
+    return {
+      ok: false,
+      payload: errorJson(
+        "subject_user_mismatch",
+        `Tool-call _meta["${OPENAI_SUBJECT_META_KEY}"] does not match the authenticated subject user.`,
+        403
+      )
+    };
+  }
+
+  return { ok: true, subjectUserId: caller.subjectUserId ?? metaSubjectUserId };
+}
+
+function withMcpSubjectUser(caller: CallerContext, subjectUserId: string | null): CallerContext {
+  if (!subjectUserId || caller.subjectUserId === subjectUserId) {
+    return caller;
+  }
+
+  return {
+    ...caller,
+    subjectUserId
+  };
+}
+
+function normalizeMcpToolArguments(
+  name: PsonAgentToolName,
+  args: Record<string, unknown>,
+  caller: CallerContext,
+  tenantId: string | null
+): Record<string, unknown> {
+  const normalized = { ...args };
+  if (
+    (name === "pson_load_profile_by_user_id" ||
+      name === "pson_create_profile" ||
+      name === "pson_ensure_profile") &&
+    typeof normalized.user_id !== "string" &&
+    caller.subjectUserId
+  ) {
+    normalized.user_id = caller.subjectUserId;
+  }
+
+  if (
+    (name === "pson_create_profile" || name === "pson_ensure_profile") &&
+    typeof normalized.tenant_id !== "string" &&
+    tenantId
+  ) {
+    normalized.tenant_id = tenantId;
+  }
+
+  return normalized;
 }
 
 function canAccessSubjectUser(caller: CallerContext, userId: string): boolean {
@@ -1282,10 +1376,10 @@ async function authorizeToolCall(
 
   const args = toolCall.arguments ?? {};
 
-  if (toolCall.name === "pson_create_profile") {
+  if (toolCall.name === "pson_create_profile" || toolCall.name === "pson_ensure_profile") {
     const userId = typeof args.user_id === "string" ? args.user_id : "";
     if (!userId) {
-      throw errorJson("validation_error", "Tool pson_create_profile requires user_id.", 400);
+      throw errorJson("validation_error", `Tool ${toolCall.name} requires user_id.`, 400);
     }
 
     if (enforceTenant) {
@@ -1554,11 +1648,11 @@ const server = createServer(async (request, response) => {
     // The MCP endpoint multiplexes discovery methods (initialize,
     // tools/list, ping, prompts/list, resources/list, …) and the
     // user-data-touching tools/call. Discovery methods don't read or
-    // write any user's profile, so requiring an `openai-user-id` header
-    // for them rejects ChatGPT's app-scan probes — those run server-to-
-    // server before any user is in the picture. We defer the subject-
-    // user check into the /v1/mcp handler so it fires only on
-    // tools/call.
+    // write any user's profile, so requiring a subject user for them
+    // rejects ChatGPT's app-scan probes — those run server-to-server
+    // before any user is in the picture. We defer the subject-user
+    // check into the /v1/mcp handler so it fires only on tools/call,
+    // where ChatGPT supplies _meta["openai/subject"].
     const isMcpEndpoint = request.method === "POST" && url.pathname === "/v1/mcp";
     const callerValidation = getCallerContext(request, auth, {
       skipSubjectUserCheck: isMcpEndpoint
@@ -1781,26 +1875,36 @@ const server = createServer(async (request, response) => {
       }
 
       if (body.method === "tools/call") {
+        const params = typeof body.params === "object" && body.params !== null ? body.params : {};
+        const mcpSubject = resolveMcpSubjectUserId(caller, params);
+        if (!mcpSubject.ok) {
+          writePayload(response, jsonRpcError(id, -32001, "Unauthorized or invalid tool call.", mcpSubject.payload));
+          return;
+        }
+        const mcpCaller = withMcpSubjectUser(caller, mcpSubject.subjectUserId);
+
         // tools/call is the only MCP method that touches user data, so
         // the subject-user binding is enforced here rather than in the
         // request-level caller-validation step (which is bypassed for
         // MCP so OpenAI's discovery probes — initialize, tools/list,
         // ping, …  — work without a user being in scope yet).
-        if (enforceSubjectUserBinding && !caller.subjectUserId) {
+        if (enforceSubjectUserBinding && !mcpCaller.subjectUserId) {
           writePayload(
             response,
             jsonRpcError(
               id,
               -32001,
-              `Missing required subject user header '${subjectUserHeaderName}' for tools/call.`
+              `Missing subject user for tools/call. Provide '${subjectUserHeaderName}' or tool-call _meta["${OPENAI_SUBJECT_META_KEY}"].`
             )
           );
           return;
         }
 
-        const params = typeof body.params === "object" && body.params !== null ? body.params : {};
         const name = params.name;
-        const args = typeof params.arguments === "object" && params.arguments !== null ? params.arguments : {};
+        const args =
+          typeof params.arguments === "object" && params.arguments !== null && !Array.isArray(params.arguments)
+            ? params.arguments
+            : {};
         const validToolNames = new Set(getPsonAgentToolDefinitions().map((tool) => tool.name));
 
         if (typeof name !== "string" || !validToolNames.has(name as PsonAgentToolName)) {
@@ -1810,11 +1914,16 @@ const server = createServer(async (request, response) => {
 
         const toolCall: PsonAgentToolCall = {
           name: name as PsonAgentToolName,
-          arguments: args as Record<string, unknown>
+          arguments: normalizeMcpToolArguments(
+            name as PsonAgentToolName,
+            args as Record<string, unknown>,
+            mcpCaller,
+            requestTenantId
+          )
         };
 
         try {
-          await authorizeToolCall(request, caller, requestTenantId, toolCall, storeRuntime.storeOptions);
+          await authorizeToolCall(request, mcpCaller, requestTenantId, toolCall, storeRuntime.storeOptions);
         } catch (payload) {
           if (
             typeof payload === "object" &&
@@ -1839,10 +1948,10 @@ const server = createServer(async (request, response) => {
           await auditAllowed(request, storeRuntime.storeOptions, {
             operation: `mcp-${policy.operation}`,
             tenant_id: requestTenantId,
-            caller_id: caller.callerId,
-            subject_user_id: caller.subjectUserId,
-            caller_role: caller.role,
-            caller_scopes: [...caller.scopes],
+            caller_id: mcpCaller.callerId,
+            subject_user_id: mcpCaller.subjectUserId,
+            caller_role: mcpCaller.role,
+            caller_scopes: [...mcpCaller.scopes],
             profile_id: typeof toolCall.arguments.profile_id === "string" ? toolCall.arguments.profile_id : null,
             user_id: typeof toolCall.arguments.user_id === "string" ? toolCall.arguments.user_id : null,
             required_role: policy.requiredRole,

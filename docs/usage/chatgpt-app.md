@@ -12,7 +12,7 @@ ChatGPT keeps no state between conversations. Wiring it to PSON5 gives every cha
 - **Inferred traits and heuristics** the modeling layer has derived
 - **State predictions** about what the user is likely doing or feeling right now
 
-ChatGPT calls `pson_ensure_profile` once at the start of a conversation, then `pson_get_agent_context` to pull the relevant slice for the current task, and `pson_observe_fact` whenever the user states something worth remembering. Across threads the profile accumulates; across users the binding is enforced by the bearer token.
+ChatGPT calls `pson_ensure_profile` once at the start of a conversation, then `pson_get_agent_context` to pull the relevant slice for the current task, and `pson_observe_fact` whenever the user states something worth remembering. Across threads the profile accumulates; across users the binding is enforced by signed token claims or ChatGPT's MCP subject metadata.
 
 ## Prerequisites
 
@@ -26,18 +26,17 @@ ChatGPT calls `pson_ensure_profile` once at the start of a conversation, then `p
 
 There are two practical patterns. Pick one based on how you want to identify each ChatGPT user:
 
-#### Pattern A — shared API key + `openai-user-id` header (recommended)
+#### Pattern A — shared API key + ChatGPT subject metadata (recommended)
 
-ChatGPT passes a stable per-user identifier in the `openai-user-id` request header on every MCP call. With API-key auth, you ship **one** shared bearer token to ChatGPT (proves the request is from your app) and PSON5 derives the per-user PSON profile from the header. Each ChatGPT user automatically lands on their own profile — no per-user token issuance.
+ChatGPT passes an anonymized stable user identifier to MCP tool calls as `_meta["openai/subject"]`. With API-key auth, you ship **one** shared bearer token to ChatGPT (proves the request is from your app) and PSON5 derives the per-user PSON profile from that MCP metadata. Each ChatGPT user automatically lands on their own profile — no per-user token issuance.
 
 ```bash
 export PSON_API_KEY="$(openssl rand -hex 32)"        # the shared bearer
 
 export PSON_ENFORCE_SUBJECT_USER=true
-export PSON_SUBJECT_USER_HEADER=openai-user-id       # trust ChatGPT's user header
 ```
 
-Trust model: anyone with the bearer can claim to be any user_id. That's fine here because the bearer is held by ChatGPT only; OpenAI sets the header truthfully. If you also accept traffic from anything that isn't ChatGPT, don't use this pattern — the header becomes spoofable.
+Trust model: anyone with the bearer can call tools, but PSON5 binds ChatGPT MCP calls to the host-provided `_meta["openai/subject"]` when no signed per-user token is present. If you also accept traffic from anything that isn't ChatGPT, prefer Pattern B or put the MCP endpoint behind an origin/client allowlist.
 
 #### Pattern B — per-user JWTs
 
@@ -69,7 +68,7 @@ curl https://your-api.example.com/v1/mcp \
 
 You should see a response with `serverInfo.name === "@pson5/api"`, the current package version, and an `Mcp-Session-Id` response header.
 
-## Issuing user tokens (Pattern B only — skip if you went with the `openai-user-id` header)
+## Issuing user tokens (Pattern B only — skip if you went with ChatGPT subject metadata)
 
 Each ChatGPT user needs a JWT bound to their PSON `user_id`. The token's `user_id` claim is what the API uses to look up or create their profile.
 
@@ -112,7 +111,7 @@ That's the entire wiring. ChatGPT handles the rest: it calls `tools/list` to dis
 
 A typical first message ("hey, suggest a recipe I'd like"):
 
-1. ChatGPT calls `pson_ensure_profile` with `{ user_id: <subject from token> }`. First-time users get a profile created on the spot; returning users get their existing profile.
+1. ChatGPT calls `pson_ensure_profile`. For MCP calls, PSON5 derives `user_id` from `_meta["openai/subject"]` when the model omits it. First-time users get a profile created on the spot; returning users get their existing profile.
 2. ChatGPT calls `pson_get_agent_context` with `{ profile_id, intent: "suggest a recipe the user would enjoy" }`. The API returns dietary preferences, cuisines they've mentioned, allergies, etc. — filtered to what's relevant.
 3. ChatGPT generates the recipe response, personalized.
 4. If the user volunteers something new ("oh, I just went vegetarian"), ChatGPT calls `pson_observe_fact` with `{ profile_id, domain: "core", key: "diet", value: "vegetarian", confidence: 1 }`.
