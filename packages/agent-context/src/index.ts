@@ -45,8 +45,32 @@ const KEY_METADATA: Record<
   main_distraction: { category: "behavioral_patterns", topics: ["focus", "distraction", "work"] }
 };
 
+/**
+ * Lookup metadata for a known registry key. When the key isn't in
+ * KEY_METADATA we *don't* try to guess a category — guessing was a
+ * source of silent data loss because:
+ *
+ *   1. KEY_METADATA was tuned for the original registry flow with a
+ *      small, fixed set of expected keys.
+ *   2. Open-conversation flows via pson_observe_fact accept arbitrary
+ *      keys (full_name, current_stack, pet_species, gym_routine, …).
+ *   3. Per-category caps mean unknown keys all funnelled into
+ *      `preferences`, then half of them got dropped.
+ *
+ * Instead we return null for unknown keys and let getObservedFacts
+ * handle them as a flat group routed to `current_state` — which is
+ * the semantic bucket that "facts the user has told us about themselves
+ * right now" actually belongs in.
+ */
+function getKnownEntryMetadata(
+  key: string
+): { category: AgentContextCategory; topics: string[] } | null {
+  return KEY_METADATA[key] ?? null;
+}
+
+/** Backwards-compatible accessor for callers that need a fallback. */
 function getEntryMetadata(key: string): { category: AgentContextCategory; topics: string[] } {
-  return KEY_METADATA[key] ?? { category: "preferences", topics: [key] };
+  return getKnownEntryMetadata(key) ?? { category: "current_state", topics: [key] };
 }
 
 function relevanceFor(key: string, intent: string, taskContext?: Record<string, unknown>): number {
@@ -92,23 +116,30 @@ function getObservedFacts(
 
     for (const [key, factValue] of Object.entries(facts)) {
       const path = `layers.observed.${domain}.facts.${key}`;
+
+      // Known registry keys keep their assigned category; unknown
+      // (free-form) keys all route to `current_state`. This stops
+      // arbitrary user-volunteered facts (full_name, current_city,
+      // favorite_band, whatever) from competing for slots inside
+      // `preferences` against each other.
+      const known = getKnownEntryMetadata(key);
+      const category: AgentContextCategory = known?.category ?? "current_state";
+
       if (restricted.has(path)) {
-        const metadata = getEntryMetadata(key);
         notes.push({
           path,
           reason: "restricted_field",
-          category: metadata.category,
+          category,
           detail: "Field is listed in profile.privacy.restricted_fields."
         });
         continue;
       }
 
-      const metadata = getEntryMetadata(key);
       entries.push({
         key,
         value: factValue,
         domain,
-        category: metadata.category,
+        category,
         source: "observed",
         confidence: 0.95,
         relevance: 0,
@@ -192,8 +223,15 @@ function getStateEntries(profile: PsonProfile): AgentContextEntry[] {
     }));
 }
 
+// Scenario cap. Originally 3, tuned for registry flows that produced a
+// handful of scenarios. Open-ended simulation flows can legitimately emit
+// 10+ scenarios in one session; a 3-cap silently drops the older ones.
+// 10 covers the common case without being unbounded — callers that want
+// a tighter cap can slice the returned context themselves.
+const MAX_PREDICTION_ENTRIES = 10;
+
 function getPredictionEntries(profile: PsonProfile): AgentContextEntry[] {
-  return profile.simulation_profiles.scenarios.slice(-3).map((scenario) => ({
+  return profile.simulation_profiles.scenarios.slice(-MAX_PREDICTION_ENTRIES).map((scenario) => ({
     key: scenario.id,
     value: scenario.prediction,
     domain: "simulation",
@@ -233,7 +271,13 @@ function scoreEntries(
   options: AgentContextOptions,
   notes: AgentContextRedactionNote[]
 ): AgentContextEntry[] {
-  const minConfidence = options.min_confidence ?? 0.6;
+  // Confidence floor for inferred/simulated entries. Was 0.6 — tuned for
+  // registry-inferred traits that reliably landed at 0.7+. Provider-inferred
+  // traits from the LLM modeling path typically land at 0.5–0.6, so a 0.6
+  // floor silently drops most of them. 0.4 keeps the filter useful for
+  // obvious noise while allowing provider-inferred facts through. Callers
+  // who want strict filtering can still pass min_confidence explicitly.
+  const minConfidence = options.min_confidence ?? 0.4;
 
   const scored = entries.map((entry) => ({
     ...entry,
@@ -310,7 +354,14 @@ function emptyPersonalData(): PsonAgentContext["personal_data"] {
 }
 
 export function buildAgentContext(profile: PsonProfile, options: AgentContextOptions): PsonAgentContext {
-  const maxItems = options.max_items ?? 6;
+  // Per-category cap. The default was 6, which was tuned for the original
+  // registry-driven flow where each category had a small fixed set of
+  // expected keys. Open-conversation chat apps using pson_observe_fact
+  // produce many custom keys that all fall into `preferences` (the
+  // KEY_METADATA fallback bucket), so a low cap silently drops half the
+  // profile. 50 is generous without being unbounded; if a caller really
+  // wants to limit they can pass max_items explicitly.
+  const maxItems = options.max_items ?? 50;
   const redactionNotes: AgentContextRedactionNote[] = [];
   const baseConstraints = {
     restricted_fields: [...profile.privacy.restricted_fields],

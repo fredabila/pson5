@@ -988,6 +988,12 @@ function getToolRoutePolicy(toolName: PsonAgentToolName): RemoteToolRoutePolicy 
         requiredScopes: ["profiles:write"],
         operation: "tool-learn"
       };
+    case "pson_observe_fact":
+      return {
+        requiredRole: "editor",
+        requiredScopes: ["profiles:write"],
+        operation: "tool-observe-fact"
+      };
     case "pson_simulate":
       return {
         requiredRole: "editor",

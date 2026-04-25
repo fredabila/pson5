@@ -135,7 +135,30 @@ export function getStoredNeo4jConfig(options?: ProfileStoreOptions): Neo4jStored
   };
 }
 
-export function saveNeo4jConfig(input: Neo4jConfig, options?: ProfileStoreOptions): Neo4jStoredConfigStatus {
+export interface SaveNeo4jConfigOptions extends ProfileStoreOptions {
+  /**
+   * On Windows, `chmod 0600` is a no-op — the credentials file ends up
+   * readable by any process running as the same user. By default we refuse
+   * to persist a Neo4j password to disk on Windows and ask the caller to
+   * use the PSON_NEO4J_* environment variables instead. Set this to `true`
+   * to override (e.g. on a single-user developer box where the risk is
+   * acceptable).
+   */
+  allow_plaintext_on_windows?: boolean;
+}
+
+export function saveNeo4jConfig(
+  input: Neo4jConfig,
+  options?: SaveNeo4jConfigOptions
+): Neo4jStoredConfigStatus {
+  if (process.platform === "win32" && input.password && !options?.allow_plaintext_on_windows) {
+    throw new Error(
+      "Refusing to write a Neo4j password to disk on Windows: chmod 0600 is ignored here so the credentials would be readable by any process running as this user. " +
+      "Set PSON_NEO4J_URI, PSON_NEO4J_USERNAME, PSON_NEO4J_PASSWORD, and optionally PSON_NEO4J_DATABASE in the environment instead. " +
+      "If you understand the risk and still want to persist to disk, pass { allow_plaintext_on_windows: true } to saveNeo4jConfig."
+    );
+  }
+
   ensureConfigDir(options);
   const filePath = getConfigPath(options);
   writeFileSync(

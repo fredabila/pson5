@@ -99,7 +99,21 @@ export function createEmptyProfile(input: InitProfileInput, now = new Date()): P
     tenant_id: input.tenant_id,
     consent: {
       granted: input.consent?.granted ?? true,
-      scopes: input.consent?.scopes ?? ["core:read", "core:write", "simulation:run"],
+      // Default scopes cover both the local-only surface (core:*,
+      // simulation:run) and the AI-provider surface (ai:use, ai:modeling,
+      // ai:simulation). Earlier versions shipped only the local-only set,
+      // which meant every pson_get_provider_policy call on a fresh profile
+      // denied modeling/simulation with "missing scopes" — a contract
+      // drift between serialization-engine and privacy. Callers who want
+      // a local-only profile pass consent.scopes explicitly.
+      scopes: input.consent?.scopes ?? [
+        "core:read",
+        "core:write",
+        "simulation:run",
+        "ai:use",
+        "ai:modeling",
+        "ai:simulation"
+      ],
       policy_version: input.consent?.policy_version ?? DEFAULT_POLICY_VERSION,
       updated_at: input.consent?.updated_at ?? timestamp
     },

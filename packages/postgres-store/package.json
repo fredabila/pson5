@@ -1,6 +1,6 @@
 {
   "name": "@pson5/postgres-store",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Postgres-oriented repository and schema helpers for PSON5 storage backends.",
   "license": "MIT",
   "repository": {
@@ -45,6 +45,6 @@
   },
   "dependencies": {
     "@pson5/core-types": "0.2.0",
-    "@pson5/serialization-engine": "0.2.0"
+    "@pson5/serialization-engine": "0.2.1"
   }
 }

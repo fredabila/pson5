@@ -1,6 +1,6 @@
 {
   "name": "@pson5/acquisition-engine",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Acquisition flow, question registry, and learning session helpers for PSON5.",
   "license": "MIT",
   "repository": {
@@ -46,8 +46,8 @@
   "dependencies": {
     "@pson5/core-types": "0.2.0",
     "@pson5/graph-engine": "0.2.0",
-    "@pson5/modeling-engine": "0.2.0",
-    "@pson5/serialization-engine": "0.2.0",
+    "@pson5/modeling-engine": "0.2.1",
+    "@pson5/serialization-engine": "0.2.1",
     "@pson5/state-engine": "0.2.0"
   }
 }

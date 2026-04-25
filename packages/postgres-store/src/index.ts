@@ -99,7 +99,7 @@ create table if not exists ${userTable} (
 );
 
 create index if not exists idx_${currentProfilesTable}_user_id on ${currentTable} (user_id);
-create index if not exists idx_${revisionsTable}_profile_id on ${revisionsTable} (profile_id);
+create index if not exists idx_${profileRevisionsTable}_profile_id on ${revisionsTable} (profile_id);
     `.trim(),
     queries: {
       selectCurrentProfile: `select profile_document from ${currentTable} where profile_id = $1`,
