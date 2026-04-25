@@ -87,7 +87,7 @@ const jwtSubjectUserClaim = process.env.PSON_JWT_USER_ID_CLAIM?.trim() || "user_
 const jwtRoleClaim = process.env.PSON_JWT_ROLE_CLAIM?.trim() || "role";
 const jwtScopesClaim = process.env.PSON_JWT_SCOPES_CLAIM?.trim() || "scopes";
 
-type RouteAccessLevel = "viewer" | "editor" | "admin";
+type RouteAccessLevel = "anonymous" | "viewer" | "editor" | "admin";
 type CallerRole = "anonymous" | "viewer" | "editor" | "admin";
 type AuthSource = "none" | "api_key" | "jwt";
 type SignedIdentityMode = "none" | "hs256" | "public_key" | "jwks";
@@ -1666,7 +1666,10 @@ const server = createServer(async (request, response) => {
 
       if (body.method === "initialize") {
         const authorization = authorizeCaller(caller, {
-          requiredRole: "viewer",
+          // MCP discovery is intentionally open — the request-level
+          // bearer (when configured) is the gate. Initialize reveals
+          // only the protocol version + capabilities, no user data.
+          requiredRole: "anonymous",
           requiredScopes: ["system:read"],
           operation: "mcp-initialize"
         });
@@ -1719,7 +1722,7 @@ const server = createServer(async (request, response) => {
         // the server and confirm it exists, which is a trivial fingerprint
         // useful for reconnaissance.
         const authorization = authorizeCaller(caller, {
-          requiredRole: "viewer",
+          requiredRole: "anonymous",
           requiredScopes: ["system:read"],
           operation: "mcp-ping"
         });
@@ -1743,7 +1746,7 @@ const server = createServer(async (request, response) => {
 
       if (body.method === "tools/list") {
         const authorization = authorizeCaller(caller, {
-          requiredRole: "viewer",
+          requiredRole: "anonymous",
           requiredScopes: ["system:read"],
           operation: "mcp-tools-list"
         });
@@ -1878,7 +1881,7 @@ const server = createServer(async (request, response) => {
         body.method === "prompts/list"
       ) {
         const authorization = authorizeCaller(caller, {
-          requiredRole: "viewer",
+          requiredRole: "anonymous",
           requiredScopes: ["system:read"],
           operation: `mcp-${body.method.replace("/", "-")}`
         });
