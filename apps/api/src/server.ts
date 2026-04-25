@@ -1465,6 +1465,28 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    // GET on the MCP endpoint must be handled before the auth/tenant/
+    // caller chain so the static 405 response is reachable without
+    // credentials. Streamable HTTP clients (including OpenAI's ChatGPT
+    // App scanner) probe this with GET to test whether the server
+    // pushes notifications via SSE; we return 405 to signal sync-only
+    // and they fall back to POST. Returning 405 from behind the auth
+    // gate would have made the scanner see a 400 about missing user
+    // headers instead — which it interprets as "endpoint exists but
+    // not usable" and bails on verification.
+    if (request.method === "GET" && url.pathname === "/v1/mcp") {
+      response.setHeader("Allow", "POST");
+      writePayload(
+        response,
+        errorJson(
+          "method_not_allowed",
+          "MCP endpoint is POST-only; this server does not push server-initiated messages.",
+          405
+        )
+      );
+      return;
+    }
+
     // OpenAI ChatGPT Apps domain verification. The console asks for a
     // token to be served at this exact path so it can prove the
     // developer controls the origin. We pull the token from an env var
@@ -1605,25 +1627,6 @@ const server = createServer(async (request, response) => {
         required_scopes: ["system:read"]
       });
       writePayload(response, json({ tools: definitions, format: "openai" }));
-      return;
-    }
-
-    // Streamable HTTP transport — GET on the MCP endpoint opens a long-
-    // lived SSE stream for server-pushed messages. We don't initiate any
-    // server-side requests (no sampling, no subscriptions), so per spec
-    // we return 405 Method Not Allowed with `Allow: POST`. Streamable
-    // HTTP clients (including ChatGPT Apps) treat 405 here as "the
-    // server is sync-only" and fall back to POST-only behaviour.
-    if (request.method === "GET" && url.pathname === "/v1/mcp") {
-      response.setHeader("Allow", "POST");
-      writePayload(
-        response,
-        errorJson(
-          "method_not_allowed",
-          "MCP endpoint is POST-only; this server does not push server-initiated messages.",
-          405
-        )
-      );
       return;
     }
 
