@@ -248,6 +248,58 @@ async function main() {
     );
     assert.equal(ensuredFromArgument.error, undefined, JSON.stringify(ensuredFromArgument.error));
     assert.equal(ensuredFromArgument.result.structuredContent.user_id, "user_argument_subject");
+
+    const observedWithoutSubject = await rpcWithoutAuth(
+      port,
+      "tools/call",
+      {
+        name: "pson_observe_fact",
+        arguments: {
+          profile_id: ensuredFromArgument.result.structuredContent.profile_id,
+          domain: "core",
+          key: "preferred_name",
+          value: "fred",
+          note: "User stated their name.",
+          confidence: 1
+        }
+      },
+      12
+    );
+    assert.equal(observedWithoutSubject.error, undefined, JSON.stringify(observedWithoutSubject.error));
+    assert.equal(
+      observedWithoutSubject.result.structuredContent.layers.observed.core.facts.preferred_name,
+      "fred"
+    );
+
+    const missingSubject = await rpcWithoutAuth(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {}
+      },
+      13
+    );
+    assert.equal(missingSubject.error?.code, -32001);
+    assert.match(missingSubject.error?.message, /subject user before authorization/i);
+    assert.doesNotMatch(missingSubject.error?.message, /tool-ensure-profile/);
+  });
+
+  await withApiServer({ PSON_DEFAULT_API_KEY_ROLE: "viewer", PSON_API_KEY: "smoke-secret" }, async (port) => {
+    await waitForServer(port);
+    const ensured = await rpc(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {
+          user_id: "user_viewer_can_ensure"
+        }
+      },
+      20
+    );
+    assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
+    assert.equal(ensured.result.structuredContent.user_id, "user_viewer_can_ensure");
   });
 }
 

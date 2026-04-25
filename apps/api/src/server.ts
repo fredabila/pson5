@@ -1053,8 +1053,8 @@ function getToolRoutePolicy(toolName: PsonAgentToolName): RemoteToolRoutePolicy 
       };
     case "pson_ensure_profile":
       return {
-        requiredRole: "editor",
-        requiredScopes: ["profiles:write"],
+        requiredRole: "viewer",
+        requiredScopes: ["profiles:read", "profiles:write"],
         operation: "tool-ensure-profile"
       };
     case "pson_get_agent_context":
@@ -1229,16 +1229,40 @@ function canDeriveMcpSubjectFromUserIdTool(name: PsonAgentToolName): boolean {
   );
 }
 
-function resolveMcpCallerForTool(
+async function resolveMcpCallerForTool(
   caller: CallerContext,
   subjectUserId: string | null,
   name: PsonAgentToolName,
-  args: Record<string, unknown>
-): { ok: true; caller: CallerContext } | { ok: false; payload: ReturnType<typeof errorJson> } {
+  args: Record<string, unknown>,
+  tenantId: string | null,
+  storeOptions: ProfileStoreOptions
+): Promise<{ ok: true; caller: CallerContext } | { ok: false; payload: ReturnType<typeof errorJson> }> {
   const argumentUserId = typeof args.user_id === "string" && args.user_id.trim().length > 0
     ? args.user_id.trim()
     : null;
-  const resolvedSubjectUserId = subjectUserId ?? (canDeriveMcpSubjectFromUserIdTool(name) ? argumentUserId : null);
+  let resolvedSubjectUserId = subjectUserId ?? (canDeriveMcpSubjectFromUserIdTool(name) ? argumentUserId : null);
+
+  const profileId = typeof args.profile_id === "string" && args.profile_id.trim().length > 0
+    ? args.profile_id.trim()
+    : null;
+  if (!resolvedSubjectUserId && profileId) {
+    try {
+      const profile = await loadProfile(profileId, storeOptions);
+      const tenantAccess = assertTenantAccess(profile, tenantId);
+      if (!tenantAccess.ok) {
+        return { ok: false, payload: tenantAccess.payload };
+      }
+      resolvedSubjectUserId = profile.user_id;
+    } catch (error) {
+      if (error instanceof ProfileStoreError) {
+        return {
+          ok: false,
+          payload: errorJson(error.storeCode, error.message, error.storeCode === "profile_not_found" ? 404 : 400)
+        };
+      }
+      throw error;
+    }
+  }
 
   if (subjectUserId && argumentUserId && subjectUserId !== argumentUserId) {
     return {
@@ -1255,6 +1279,10 @@ function resolveMcpCallerForTool(
     ok: true,
     caller: withMcpSubjectDefaultRole(withMcpSubjectUser(caller, resolvedSubjectUserId))
   };
+}
+
+function requiresMcpSubjectBeforeAuthorization(name: PsonAgentToolName): boolean {
+  return true;
 }
 
 function normalizeMcpToolArguments(
@@ -1990,17 +2018,29 @@ const server = createServer(async (request, response) => {
           return;
         }
 
-        const mcpCallerResult = resolveMcpCallerForTool(
+        const mcpCallerResult = await resolveMcpCallerForTool(
           caller,
           mcpSubject.subjectUserId,
           name as PsonAgentToolName,
-          args as Record<string, unknown>
+          args as Record<string, unknown>,
+          requestTenantId,
+          storeRuntime.storeOptions
         );
         if (!mcpCallerResult.ok) {
           writePayload(response, jsonRpcToolAuthError(id, mcpCallerResult.payload));
           return;
         }
         const mcpCaller = mcpCallerResult.caller;
+
+        if (requiresMcpSubjectBeforeAuthorization(name as PsonAgentToolName) && !mcpCaller.subjectUserId) {
+          const missingSubjectPayload = errorJson(
+            "subject_user_required",
+            `Tool ${name} requires a subject user before authorization. Provide '${subjectUserHeaderName}', 'openai-user-id', 'openai-subject', tool-call _meta["${OPENAI_SUBJECT_META_KEY}"], or arguments.user_id.`,
+            400
+          );
+          writePayload(response, jsonRpcToolAuthError(id, missingSubjectPayload));
+          return;
+        }
 
         // tools/call is the only MCP method that touches user data, so
         // the subject-user binding is enforced here rather than in the
