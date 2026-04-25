@@ -19,9 +19,10 @@
     "@pson5/postgres-store": "0.2.2",
     "@pson5/privacy": "0.2.0",
     "@pson5/provider-engine": "0.2.2",
-    "@pson5/serialization-engine": "0.2.2",
     "@pson5/sdk": "0.2.2",
+    "@pson5/serialization-engine": "0.2.2",
     "@pson5/simulation-engine": "0.2.2",
-    "@pson5/state-engine": "0.2.0"
+    "@pson5/state-engine": "0.2.0",
+    "pg": "^8.20.0"
   }
 }

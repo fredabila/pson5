@@ -25,17 +25,23 @@ async function getFreePort() {
 }
 
 async function rpc(port, method, params = {}, id = 1) {
+  return rpcWithHeaders(port, method, params, id);
+}
+
+async function rpcWithHeaders(port, method, params = {}, id = 1, extraHeaders = {}, bodyExtra = {}) {
   const response = await fetch(`http://127.0.0.1:${port}/v1/mcp`, {
     method: "POST",
     headers: {
       "authorization": "Bearer smoke-secret",
-      "content-type": "application/json"
+      "content-type": "application/json",
+      ...extraHeaders
     },
     body: JSON.stringify({
       jsonrpc: "2.0",
       id,
       method,
-      params
+      params,
+      ...bodyExtra
     })
   });
 
@@ -113,6 +119,38 @@ async function main() {
     assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
     assert.equal(ensured.result.structuredContent.user_id, "user_openai_subject");
 
+    const nestedSubject = await rpc(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {},
+        _meta: {
+          openai: {
+            subject: "user_nested_openai_subject"
+          }
+        }
+      },
+      4
+    );
+    assert.equal(nestedSubject.error, undefined, JSON.stringify(nestedSubject.error));
+    assert.equal(nestedSubject.result.structuredContent.user_id, "user_nested_openai_subject");
+
+    const headerSubject = await rpcWithHeaders(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {}
+      },
+      5,
+      {
+        "openai-user-id": "user_openai_header"
+      }
+    );
+    assert.equal(headerSubject.error, undefined, JSON.stringify(headerSubject.error));
+    assert.equal(headerSubject.result.structuredContent.user_id, "user_openai_header");
+
     const denied = await rpc(
       port,
       "tools/call",
@@ -125,9 +163,10 @@ async function main() {
           "openai/subject": "user_openai_subject"
         }
       },
-      4
+      6
     );
     assert.equal(denied.error?.code, -32001, "mismatched user_id remains denied");
+    assert.match(denied.error?.message, /subject user/i);
 
     console.log("mcp http openai subject integration passed");
   } catch (error) {

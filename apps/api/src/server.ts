@@ -185,6 +185,7 @@ interface JsonRpcRequestBody {
   id?: string | number | null;
   method?: string;
   params?: Record<string, unknown>;
+  _meta?: Record<string, unknown>;
 }
 
 interface JsonRpcSuccessPayload {
@@ -442,6 +443,18 @@ function getErrorMessageFromPayload(payload: ReturnType<typeof errorJson>): stri
   } catch {
     return "Unknown error.";
   }
+}
+
+function jsonRpcToolAuthError(
+  id: string | number | null,
+  payload: ReturnType<typeof errorJson>
+): JsonRpcSuccessPayload {
+  return jsonRpcError(
+    id,
+    -32001,
+    `Unauthorized or invalid tool call: ${getErrorMessageFromPayload(payload)}`,
+    payload
+  );
 }
 
 function decodeBase64Url(value: string): string | null {
@@ -900,7 +913,11 @@ function getCallerContext(
   options?: { skipSubjectUserCheck?: boolean }
 ): { ok: true; context: CallerContext } | { ok: false; payload: ReturnType<typeof errorJson> } {
   const headerCallerId = getHeaderValue(request, callerIdHeaderName) ?? null;
-  const headerSubjectUserId = getHeaderValue(request, subjectUserHeaderName) ?? null;
+  const headerSubjectUserId =
+    getHeaderValue(request, subjectUserHeaderName) ??
+    getHeaderValue(request, "openai-user-id") ??
+    getHeaderValue(request, "openai-subject") ??
+    null;
   const headerRole = parseRole(getHeaderValue(request, roleHeaderName));
   const headerScopes = new Set(
     (getHeaderValue(request, scopeHeaderName) ?? "")
@@ -1122,8 +1139,22 @@ function getMcpInputSchema(tool: PsonAgentToolDefinition): Record<string, unknow
   };
 }
 
-function getMcpToolCallMeta(params: Record<string, unknown>): Record<string, unknown> {
-  return asObject(params._meta) ?? {};
+function getMcpToolCallMeta(
+  params: Record<string, unknown>,
+  requestBody?: JsonRpcRequestBody
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = {};
+  const bodyMeta = asObject(requestBody?._meta);
+  const paramsMeta = asObject(params._meta);
+  const argumentsMeta = asObject(asObject(params.arguments)?._meta);
+
+  for (const meta of [bodyMeta, paramsMeta, argumentsMeta]) {
+    if (meta) {
+      Object.assign(merged, meta);
+    }
+  }
+
+  return merged;
 }
 
 function getMcpMetaString(meta: Record<string, unknown>, key: string): string | null {
@@ -1131,11 +1162,28 @@ function getMcpMetaString(meta: Record<string, unknown>, key: string): string | 
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
+function getNestedMcpMetaString(meta: Record<string, unknown>, pathParts: string[]): string | null {
+  let current: unknown = meta;
+  for (const part of pathParts) {
+    const currentObject = asObject(current);
+    if (!currentObject) {
+      return null;
+    }
+    current = currentObject[part];
+  }
+
+  return typeof current === "string" && current.trim().length > 0 ? current.trim() : null;
+}
+
 function resolveMcpSubjectUserId(
   caller: CallerContext,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  requestBody?: JsonRpcRequestBody
 ): { ok: true; subjectUserId: string | null } | { ok: false; payload: ReturnType<typeof errorJson> } {
-  const metaSubjectUserId = getMcpMetaString(getMcpToolCallMeta(params), OPENAI_SUBJECT_META_KEY);
+  const meta = getMcpToolCallMeta(params, requestBody);
+  const metaSubjectUserId =
+    getMcpMetaString(meta, OPENAI_SUBJECT_META_KEY) ??
+    getNestedMcpMetaString(meta, ["openai", "subject"]);
   if (caller.subjectUserId && metaSubjectUserId && caller.subjectUserId !== metaSubjectUserId) {
     return {
       ok: false,
@@ -1876,9 +1924,9 @@ const server = createServer(async (request, response) => {
 
       if (body.method === "tools/call") {
         const params = typeof body.params === "object" && body.params !== null ? body.params : {};
-        const mcpSubject = resolveMcpSubjectUserId(caller, params);
+        const mcpSubject = resolveMcpSubjectUserId(caller, params, body);
         if (!mcpSubject.ok) {
-          writePayload(response, jsonRpcError(id, -32001, "Unauthorized or invalid tool call.", mcpSubject.payload));
+          writePayload(response, jsonRpcToolAuthError(id, mcpSubject.payload));
           return;
         }
         const mcpCaller = withMcpSubjectUser(caller, mcpSubject.subjectUserId);
@@ -1889,13 +1937,14 @@ const server = createServer(async (request, response) => {
         // MCP so OpenAI's discovery probes — initialize, tools/list,
         // ping, …  — work without a user being in scope yet).
         if (enforceSubjectUserBinding && !mcpCaller.subjectUserId) {
+          const missingSubjectPayload = errorJson(
+            "subject_user_required",
+            `Missing subject user for tools/call. Provide '${subjectUserHeaderName}', 'openai-user-id', 'openai-subject', or tool-call _meta["${OPENAI_SUBJECT_META_KEY}"].`,
+            400
+          );
           writePayload(
             response,
-            jsonRpcError(
-              id,
-              -32001,
-              `Missing subject user for tools/call. Provide '${subjectUserHeaderName}' or tool-call _meta["${OPENAI_SUBJECT_META_KEY}"].`
-            )
+            jsonRpcToolAuthError(id, missingSubjectPayload)
           );
           return;
         }
@@ -1932,7 +1981,13 @@ const server = createServer(async (request, response) => {
             "statusCode" in payload &&
             "headers" in payload
           ) {
-            writePayload(response, jsonRpcError(id, -32001, "Unauthorized or invalid tool call.", payload));
+            writePayload(
+              response,
+              jsonRpcToolAuthError(
+                id,
+                payload as { body: string; statusCode: number; headers: Record<string, string> }
+              )
+            );
             return;
           }
 

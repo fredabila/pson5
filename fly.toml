@@ -15,8 +15,7 @@ primary_region = 'iad'
   PSON_ACCESS_AUDIT_ENABLED = 'false'
   PSON_ENFORCE_SUBJECT_USER = 'true'
   PSON_JWT_USER_ID_CLAIM = 'sub'
-  PSON_PROFILE_STORE = 'postgres'
-  PSON_SUBJECT_USER_HEADER = 'openai-user-id'
+  PSON_STORE_BACKEND = 'postgres'
 
 [http_service]
   internal_port = 8080
