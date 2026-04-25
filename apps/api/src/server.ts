@@ -927,7 +927,25 @@ function getCallerContext(
 
   const callerId = jwtClaims?.callerId ?? headerCallerId;
   const subjectUserId = jwtClaims?.subjectUserId ?? headerSubjectUserId;
-  const role = jwtClaims?.role ?? headerRole;
+
+  // For api-key auth, presenting the shared secret IS the authorization
+  // — the bearer holder is acting on behalf of the deployment owner.
+  // We default that caller to `editor` so MCP discovery (initialize,
+  // tools/list, …) and tool-call operations work out of the box.
+  // Override via the role header when finer-grained ranking is needed,
+  // or set PSON_DEFAULT_API_KEY_ROLE to lock it down. For JWT-issued
+  // identities the role still comes from the signed claims, since each
+  // user there has their own claims.
+  const apiKeyDefaultRole = parseRole(
+    process.env.PSON_DEFAULT_API_KEY_ROLE?.trim() ?? "editor"
+  );
+  const role =
+    jwtClaims?.role ??
+    (headerRole !== "anonymous"
+      ? headerRole
+      : auth.authSource === "api_key"
+        ? apiKeyDefaultRole
+        : headerRole);
   const scopes = jwtClaims?.scopes ?? headerScopes;
 
   if (requireCallerId && !callerId) {
