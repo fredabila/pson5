@@ -276,7 +276,7 @@ async function main() {
       "fred"
     );
 
-    const missingSubject = await rpcWithoutAuth(
+    const sessionFallback = await rpcWithoutAuth(
       port,
       "tools/call",
       {
@@ -285,9 +285,8 @@ async function main() {
       },
       13
     );
-    assert.equal(missingSubject.error?.code, -32001);
-    assert.match(missingSubject.error?.message, /subject user before authorization/i);
-    assert.doesNotMatch(missingSubject.error?.message, /tool-ensure-profile/);
+    assert.equal(sessionFallback.error, undefined, JSON.stringify(sessionFallback.error));
+    assert.match(sessionFallback.result.structuredContent.user_id, /^mcp_session_[a-f0-9]{24}$/);
   });
 
   await withApiServer({ PSON_DEFAULT_API_KEY_ROLE: "viewer", PSON_API_KEY: "smoke-secret" }, async (port) => {
@@ -324,6 +323,25 @@ async function main() {
     );
     assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
     assert.match(ensured.result.structuredContent.user_id, /^mcp_[a-f0-9]{32}$/);
+  });
+
+  await withApiServer({}, async (port) => {
+    await waitForUnauthedServer(port);
+    const ensured = await rpcWithoutAuth(
+      port,
+      "tools/call",
+      {
+        name: "pson_ensure_profile",
+        arguments: {
+          tenant_id: "default",
+          domains: ["core"],
+          depth: "light"
+        }
+      },
+      40
+    );
+    assert.equal(ensured.error, undefined, JSON.stringify(ensured.error));
+    assert.match(ensured.result.structuredContent.user_id, /^mcp_session_[a-f0-9]{24}$/);
   });
 }
 

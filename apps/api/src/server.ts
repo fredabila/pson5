@@ -373,8 +373,9 @@ function writePayload(
 const MCP_SESSION_HEADER = "mcp-session-id";
 const OPENAI_SUBJECT_META_KEY = "openai/subject";
 const allowMcpArgumentSubjectFallback = process.env.PSON_MCP_ALLOW_ARGUMENT_SUBJECT_FALLBACK !== "false";
-const mcpSubjectFallbackMode = (process.env.PSON_MCP_SUBJECT_FALLBACK?.trim().toLowerCase() || "bearer_hash") as
+const mcpSubjectFallbackMode = (process.env.PSON_MCP_SUBJECT_FALLBACK?.trim().toLowerCase() || "session_hash") as
   | "bearer_hash"
+  | "session_hash"
   | "disabled";
 
 /**
@@ -1213,11 +1214,20 @@ function getMcpFallbackSubjectUserId(request: import("node:http").IncomingMessag
   }
 
   const credential = getBearerToken(request) ?? getHeaderValue(request, "x-api-key");
-  if (!credential) {
+  if (credential) {
+    return `mcp_${createHash("sha256").update(credential).digest("hex").slice(0, 32)}`;
+  }
+
+  if (mcpSubjectFallbackMode !== "session_hash") {
     return null;
   }
 
-  return `mcp_${createHash("sha256").update(credential).digest("hex").slice(0, 32)}`;
+  const sessionId = getHeaderValue(request, MCP_SESSION_HEADER) ?? getRequestId(request);
+  if (!sessionId) {
+    return null;
+  }
+
+  return `mcp_session_${createHash("sha256").update(sessionId).digest("hex").slice(0, 24)}`;
 }
 
 function withMcpSubjectUser(caller: CallerContext, subjectUserId: string | null): CallerContext {
