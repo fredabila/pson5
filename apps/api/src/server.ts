@@ -9,6 +9,7 @@ import {
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { InitProfileInput, ProfileStoreOptions, PsonProfile } from "@pson5/core-types";
 import { redactProfileForExport } from "@pson5/privacy";
 import { getNextQuestions, submitLearningAnswers } from "@pson5/acquisition-engine";
@@ -39,6 +40,22 @@ import {
 import { PsonError } from "@pson5/core-types";
 import { simulateStoredProfile } from "@pson5/simulation-engine";
 import { getActiveStateSnapshot } from "@pson5/state-engine";
+
+// Read the API's own version from its package.json so the MCP
+// initialize handshake reports something accurate to clients (ChatGPT
+// Apps in particular surfaces this in their app catalogue). The compiled
+// server lives at apps/api/dist/apps/api/src/server.js, so the package
+// manifest is four directories up from here.
+const apiPackageVersion: string = (() => {
+  try {
+    const compiledDir = path.dirname(fileURLToPath(import.meta.url));
+    const manifestPath = path.resolve(compiledDir, "../../../../package.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { version?: unknown };
+    return typeof manifest.version === "string" ? manifest.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 const port = Number(process.env.PORT ?? 3000);
 const configuredApiKey = process.env.PSON_API_KEY?.trim() ?? "";
@@ -1574,13 +1591,13 @@ const server = createServer(async (request, response) => {
           jsonRpcResult(id, {
             protocolVersion: "2025-03-26",
             capabilities: {
-              tools: {
-                listChanged: false
-              }
+              tools: { listChanged: false },
+              resources: { listChanged: false },
+              prompts: { listChanged: false }
             },
             serverInfo: {
               name: "@pson5/api",
-              version: "0.1.0"
+              version: apiPackageVersion
             }
           })
         );
@@ -1720,6 +1737,48 @@ const server = createServer(async (request, response) => {
           writePayload(response, jsonRpcError(id, -32002, message));
           return;
         }
+      }
+
+      // MCP 2025-03-26 clients (notably ChatGPT Apps) call resources/list
+      // and prompts/list during the handshake even when they don't intend
+      // to use either surface. Returning -32601 for these makes some
+      // clients reject the connection. We declare empty lists here; if we
+      // later expose a `pson://profile/me` resource or a prompt template,
+      // the existing capabilities block already advertises support.
+      if (
+        body.method === "resources/list" ||
+        body.method === "resources/templates/list" ||
+        body.method === "prompts/list"
+      ) {
+        const authorization = authorizeCaller(caller, {
+          requiredRole: "viewer",
+          requiredScopes: ["system:read"],
+          operation: `mcp-${body.method.replace("/", "-")}`
+        });
+        if (!authorization.ok) {
+          writePayload(response, jsonRpcError(id, -32001, "Unauthorized.", authorization.payload));
+          return;
+        }
+        const payload =
+          body.method === "prompts/list"
+            ? { prompts: [] }
+            : body.method === "resources/templates/list"
+              ? { resourceTemplates: [] }
+              : { resources: [] };
+        writePayload(response, jsonRpcResult(id, payload));
+        return;
+      }
+
+      if (body.method === "resources/read" || body.method === "prompts/get") {
+        // No resources or prompts are defined yet, so any read by URI or
+        // prompt name is a not-found. Returning a structured JSON-RPC
+        // error (rather than -32601) tells the client the method exists
+        // but the requested item doesn't.
+        writePayload(
+          response,
+          jsonRpcError(id, -32602, `No item registered for ${body.method}.`)
+        );
+        return;
       }
 
       writePayload(response, jsonRpcError(id, -32601, `Unsupported MCP method '${body.method}'.`));

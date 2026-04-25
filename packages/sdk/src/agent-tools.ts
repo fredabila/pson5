@@ -44,7 +44,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_load_profile_by_user_id",
-      description: "Load the latest PSON profile for a known application user id.",
+      description:
+        "Load this user's existing PSON personalization profile. Call this at the start of a conversation before personalizing anything — the profile holds what the user has previously volunteered about themselves and what's been inferred. Returns null if no profile exists; in that case call pson_create_profile.",
       input_schema: objectSchema(
         {
           user_id: { type: "string" }
@@ -55,7 +56,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_create_profile",
-      description: "Create a new PSON profile for an application user.",
+      description:
+        "Create a fresh PSON profile for a user who doesn't have one yet. Call this only after pson_load_profile_by_user_id returned nothing for the user_id. The profile starts empty and grows via pson_observe_fact (free-form facts) and pson_learn (structured answers).",
       input_schema: objectSchema(
         {
           user_id: { type: "string" },
@@ -69,7 +71,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_get_agent_context",
-      description: "Return the filtered agent-safe personalization projection for a profile.",
+      description:
+        "Project the relevant slice of the user's PSON profile for the current task. Pass `intent` describing what the user is asking for; returns the user's preferences, communication style, behavioural patterns, current state, and predictions filtered to what's relevant. Use this to personalize your tone and content. Safer than reading the raw profile because it respects privacy scopes and confidence floors.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
@@ -86,7 +89,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_get_next_questions",
-      description: "Choose the next adaptive question to reduce uncertainty in a profile.",
+      description:
+        "Get the next question to ask the user that would most reduce uncertainty in their profile. Use this only when the user has opted into structured profile-building (e.g. 'help me set up my profile' or 'ask me a few questions'). After the user answers, pass their answer to pson_learn with the question_id returned here. Don't call this opportunistically during casual conversation.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
@@ -101,7 +105,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_learn",
-      description: "Store user answers through the structured PSON learning flow.",
+      description:
+        "Record the user's answer to a question that came from pson_get_next_questions. Each answer must reference a question_id from that call. Use this for structured registry answers; for free-form facts the user volunteers in conversation (name, location, preferences), use pson_observe_fact instead.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
@@ -175,7 +180,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_simulate",
-      description: "Simulate likely user behavior for a task or scenario using a profile.",
+      description:
+        "Predict how the user would respond to a hypothetical scenario, based on their profile. Pass a context describing the situation and get back probable behaviours and reasoning. Use for 'what would I prefer' or 'how would I react' style questions — never as a substitute for asking the user directly. Requires AI consent scopes; check with pson_get_provider_policy first.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
@@ -188,7 +194,8 @@ export function getPsonAgentToolDefinitions(): PsonAgentToolDefinition[] {
     {
       type: "function",
       name: "pson_get_provider_policy",
-      description: "Check whether provider-backed modeling or simulation is allowed for a profile.",
+      description:
+        "Before calling pson_simulate or any AI-backed inference, check whether the user has consented. Returns whether the operation is allowed under the profile's privacy scopes, plus a reason if denied. Honour a deny — never fall back to running the operation without consent.",
       input_schema: objectSchema(
         {
           profile_id: { type: "string" },
