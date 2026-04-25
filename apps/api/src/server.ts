@@ -368,6 +368,33 @@ function writePayload(
   response.end(payload.body);
 }
 
+const MCP_SESSION_HEADER = "mcp-session-id";
+
+/**
+ * Ensure a Streamable HTTP session id is in scope for the current MCP
+ * exchange and propagate it to the response. Per the MCP 2025-03-26
+ * Streamable HTTP transport, the server issues an `Mcp-Session-Id`
+ * header on the initialize response and the client echoes it on
+ * subsequent requests. We accept whatever the client sends back, and
+ * mint a fresh UUID when none is provided (i.e. on the first request).
+ *
+ * Validation of returning session ids is intentionally permissive — we
+ * don't track session state server-side because every MCP method we
+ * expose is stateless. The header is still set so transports that
+ * insist on its presence (notably the OpenAI/ChatGPT Apps client) keep
+ * the connection.
+ */
+function ensureMcpSessionId(
+  request: import("node:http").IncomingMessage,
+  response: import("node:http").ServerResponse<import("node:http").IncomingMessage>
+): string {
+  const incoming = request.headers[MCP_SESSION_HEADER];
+  const provided = Array.isArray(incoming) ? incoming[0] : incoming;
+  const sessionId = typeof provided === "string" && provided.length > 0 ? provided : randomUUID();
+  response.setHeader("Mcp-Session-Id", sessionId);
+  return sessionId;
+}
+
 function isPrivilegedCaller(caller: CallerContext): boolean {
   return caller.role === "admin" || caller.scopes.has("profiles:admin");
 }
@@ -1539,7 +1566,27 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    // Streamable HTTP transport — GET on the MCP endpoint opens a long-
+    // lived SSE stream for server-pushed messages. We don't initiate any
+    // server-side requests (no sampling, no subscriptions), so per spec
+    // we return 405 Method Not Allowed with `Allow: POST`. Streamable
+    // HTTP clients (including ChatGPT Apps) treat 405 here as "the
+    // server is sync-only" and fall back to POST-only behaviour.
+    if (request.method === "GET" && url.pathname === "/v1/mcp") {
+      response.setHeader("Allow", "POST");
+      writePayload(
+        response,
+        errorJson(
+          "method_not_allowed",
+          "MCP endpoint is POST-only; this server does not push server-initiated messages.",
+          405
+        )
+      );
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/v1/mcp") {
+      ensureMcpSessionId(request, response);
       const body = (await readJson(request)) as JsonRpcRequestBody;
       const id = body.id ?? null;
 
